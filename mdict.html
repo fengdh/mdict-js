@@ -14,13 +14,20 @@ Released under the MIT license: http://jsbin.mit-license.org
   <script src="require.js"></script>
   <script src="jquery-1.11.1.js"></script>
   <script src="minilzo-decompress.js"></script>
+  <script src="murmurhash3.js"></script>
   <link rel="stylesheet" type="text/css" href="">
   <meta charset="utf-8">
   <title>MDict JS</title>
 
 </head>
 <body>
-  Select a file: <input type="file">
+  Choose a dictionary file (*.mdx): <input type="file">
+  <p>
+  <input id="word" type="text" value="among">
+  <input id="btnLookup" type="button" value="look up" disabled="false">
+
+  <div id="definition">
+  </div>
   <script type="text/javascript" src="mdict.js"></script>
 </body>
 </html>

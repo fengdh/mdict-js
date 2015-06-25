@@ -55,15 +55,15 @@ var lzo1x = (function () {
         }
         return buf;
       },
-      pack: function() { console.log('lzo output: ' + c); return buf.subarray(0, c); }
+      pack: function() { return new bufType(buf.buffer.slice(0, c * bufType.BYTES_PER_ELEMENT)); }
     };
   }
 
-    function decompress(pInBuf, bufSize) { // @param Unit8Array
+    function decompress(pInBuf, bufInitSize, bufBlockSize) { // @param Unit8Array
                      // @return Unit8Array
       var t,
-        buf = new FlexBuffer(Uint8Array),
-        out = buf.alloc(bufSize),
+        buf = new FlexBuffer(Uint8Array, bufBlockSize),
+        out = buf.alloc(bufInitSize),
         ip = 0,
         op = 0,
         ip_end = pInBuf.length,
@@ -240,8 +240,8 @@ var lzo1x = (function () {
   }
 
   return {
-    decompress: function(s, bufSize) {
-      return decompress(new Uint8Array(s), bufSize);
+    decompress: function(s, bufInitSize, bufBlockSize) {
+      return decompress(new Uint8Array(s), bufInitSize, bufBlockSize);
     }
   };
 })();
