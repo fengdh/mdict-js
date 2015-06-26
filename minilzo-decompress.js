@@ -232,9 +232,9 @@ var lzo1x = (function () {
               t = pInBuf[ip++];
               innerLoopPos = 0; // fallthru to loop start
             }
-          } while (true);
+          } while (true && t !== void 0);
         }
-      } while (doOuterLoop);
+      } while (doOuterLoop && t !== void 0);
 
       return buf.pack();
   }

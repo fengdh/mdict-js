@@ -18,10 +18,23 @@ Released under the MIT license: http://jsbin.mit-license.org
   <link rel="stylesheet" type="text/css" href="">
   <meta charset="utf-8">
   <title>MDict JS</title>
+  <style>
+    #btnLookup {
+      border: none;
+      height: 2em;
+      font-size: 12pt;
+      font-weight: bold;
+    }
+    
+    #btnLookup:not([disabled]) {
+      background: #1A4FDD;
+      color: white;
+    }
+  </style>
 
 </head>
 <body>
-  Choose a dictionary file (*.mdx): <input type="file">
+  Choose a dictionary file (*.mdx): <input id="dictfile" type="file">
   <p>
   <input id="word" type="text" value="among">
   <input id="btnLookup" type="button" value="look up" disabled="false">

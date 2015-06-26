@@ -1,146 +1,125 @@
+
 var TTTT;
-(function(root, factory) {
+(function (root, factory) {"use strict";
 
   if (typeof define === 'function' && define.amd) {
     // AMD. Register as an anonymous module.
     define('mdictjs', ['jquery', 'pako_inflate'], factory);
   } else {
     // Browser globals
-    factory(jQuery);
+    factory(jQuery, pako);
   }
 
 }(this, function($, pako) {
 
   return function parse_mdict(file) {
 
-    var attrs = {},
-      UTF_16LE = new TextDecoder('utf-16le'),
-      willDone = $.Deferred();
+    var UTF_16LE = new TextDecoder('utf-16le'), attrs = {}, willDone = $.Deferred();
 
+    // Note: key = keyword or head word
+    // Compact key table, which can be viewed as an Uint32Array containing N pairs of (key_hashcode, record_offset) value. 
+    // where N is number of key entries.
+    // This table should be sorted first according to key_hashcode before searching offset of a key (using Array.prototype.sort).
+    // To execute binary search in the sorted key table, you have to calculate its hashcode for any given keyword.
     var KEY_TABLE = (function() {
-      var pos = 0,
-        arr, view,
-        F64 = new Float64Array(2),
-        U32 = new Uint32Array(F64.buffer);
-
+      var pos = 0, arr, view, F64 = new Float64Array(2), U32 = new Uint32Array(F64.buffer);
+      
       return {
-        alloc: function(len) {
-          arr = new Float64Array(len);
-          return this;
-        },
-        put: function(hash, offset) {
-          var tmp = new Uint32Array(arr.buffer, pos, 2);
-          tmp[0] = hash;
-          tmp[1] = offset;
-          pos += Float64Array.BYTES_PER_ELEMENT;
-          return this;
-        },
-        pack: function() {
-          if (!view) {
-            arr = arr.subarray(0, pos / Float64Array.BYTES_PER_ELEMENT);
-            view = new Uint32Array(arr.buffer, 0, pos / Uint32Array.BYTES_PER_ELEMENT);
-          }
-          return view;
-        },
-        sort: function() {
-          this.pack();
-          Array.prototype.sort.call(arr, function(f1, f2) {
-            return F64[0] = f1, F64[1] = f2, U32[0] - U32[2];
-          });
-        },
-        find: function(hash) {
-          var hi = arr.length - 1,
-            lo = 0,
-            i = ~~((lo + hi) / 2),
-            val = view[2 * i];
-          if (hash < 0) {
-            hash += 0xFFFFFFFF + 1;
-          }
-          while (true) {
-            if (hash === val) {
-              return view[2 * i + 1];
-            } else if (hi === lo || i === hi || i === lo) {
-              return -1;
-            }
+        alloc:  function(len) { 
+                  arr = new Float64Array(len); 
+                  view = new Uint32Array(arr.buffer); 
+                  return this; 
+                },
+        put:    function(hash, offset) {
+                  view.set([hash, offset], pos / Uint32Array.BYTES_PER_ELEMENT);
+                  pos += Float64Array.BYTES_PER_ELEMENT;
+                  return this;
+                },
+        pack:   function() {
+                  if (pos < arr.byteLength) {
+                    arr = arr.subarray(0, pos / Float64Array.BYTES_PER_ELEMENT);
+                    view = new Uint32Array(arr.buffer, 0, pos / Uint32Array.BYTES_PER_ELEMENT);
+                  }
+                  return view;
+                },
+        sort:   function() {
+                  this.pack();
+                  Array.prototype.sort.call(arr, function(f1, f2) { return F64[0] = f1, F64[1] = f2, U32[0] - U32[2]; });
+                  return this;
+                },
+        find:   function(hash) {
+                  var hi = arr.length - 1, lo = 0, i = (lo + hi) >> 1, val = view[i << 1];
+                  if (hash < 0) { 
+                    hash += 0xFFFFFFFF; hash++;
+                  }
+                  while (true) {
+                    if (hash === val) {
+                      return view[(i << 1) + 1];
+                    } else if (hi === lo || i === hi || i === lo) {
+                      return -1;
+                    }
 
-            if (hash < val) {
-              hi = i;
-            } else {
-              lo = i;
-            }
-            i = ~~((lo + hi) / 2);
-            val = view[2 * i];
-          }
-        },
-        debug: function() {
-          console.log(this.pack());
-        },
-        saveAs: function(fileName) {
-          if (view) {
-            saveData(view, fileName);
-          }
-        }
+                    (hash < val) ? hi = i : lo = i;
+                    i = (lo + hi) >> 1;
+                    val = view[i << 1];
+                  }
+                },
+        debug:  function() { console.log(this.pack()); return this; }
       }
     })();
 
+    // Compact record block table which can be viewed as an Uint32Array containing N+1 pairs of (absolute_offset_comp, offset_decomp) value,
+    // where N is number of record blocks. The tail of the table shows offset of the last record block's end.
+    // This table should be sorted first according to offset_decomp before searching.
+    // How to look up for a given keyword:
+    //     1. Find offset (offset_decomp) of record in KEY_TABLE.
+    //     2. Execute binary search on RECORD_BLOCK_TABLE to get record block containing the record.
+    //     3. Load found record block, using offset to retrieve content of the record.
     var RECORD_BLOCK_TABLE = (function() {
-      var pos = 0,
-        arr; // [abosulte_offset, ]
+      var pos = 0, arr;
       return {
-        alloc: function(len) {
-          arr = new Uint32Array(len * 2);
-          return this;
-        },
-        put: function(offset_comp, offset_decomp) {
-          arr[pos++] = offset_comp;
-          arr[pos++] = offset_decomp;
-          return this;
-        },
-        debug: function() {
-          console.log(arr);
-        },
-        find: function(keyAt) {
-          var hi = arr.length / 2,
-            lo = 0,
-            i = ~~((lo + hi) / 2),
-            val = arr[2 * i + 1];
+        alloc:  function(len) { 
+                  arr = new Uint32Array(len * 2);
+                  return this; 
+                },
+        put:    function(offset_comp, offset_decomp) { 
+                  arr.set([offset_comp, offset_decomp], pos);
+                  pos += 2;
+                  return this; 
+                },
+        debug:  function() { console.log(arr); return this; },
+        find:   function(keyAt) {
+                  var hi = (arr.length >> 1) - 1, lo = 0, i = (lo + hi) >> 1, val = arr[(i << 1) + 1];
 
-          if (keyAt > arr[2 * hi + 1] || keyAt < 0) {
-            return;
-          }
+                  if (keyAt > arr[(hi << 1) + 1] || keyAt < 0) {
+                    return;
+                  }
 
-          while (true) {
-            if (hi - lo <= 1) {
-              /*return [i, arr[2 * i], arr[2 * i + 1], arr[2 * i + 3]];*/
-              if (i < hi) {
-                return {
-                  block_no: i,
-                  comp_offset: arr[2 * i],
-                  comp_size: arr[2 * i + 2] - arr[2 * i],
-                  decomp_offset: arr[2 * i + 1],
-                  decomp_size: arr[2 * i + 3] - arr[2 * i + 1]
-                };
-              } else {
-                return;
-              }
-            }
-            if (keyAt < val) {
-              hi = i;
-            } else {
-              lo = i;
-            }
-            i = ~~((lo + hi) / 2);
-            val = arr[2 * i + 1];
-          }
-        }
-      }
+                  while (true) {                    
+                    if (hi - lo <= 1) {
+                      if (i < hi) {
+                        return {
+                          block_no:     i,
+                          comp_offset:  arr[i <<= 1],
+                          comp_size:    arr[i + 2] - arr[i],
+                          decomp_offset:arr[i + 1],
+                          decomp_size:  arr[i + 3] - arr[i + 1]
+                        };
+                      } else {
+                        return;
+                      }
+                    }
 
+                    (keyAt < val)  ? hi = i : lo = i;
+                    i = (lo + hi) >> 1;
+                    val = arr[(i << 1) + 1];
+                  }
+                },
+        };
     })();
 
 
-    var keyword_index,
-      START_KEY_BLOCK,
-      START_RECORD_BLOCK;
+    var START_KEY_BLOCK, START_RECORD_BLOCK;
 
 
     var _HASHSEED = 0xFE179;
@@ -154,23 +133,21 @@ var TTTT;
       document.body.appendChild(a);
       a.style = "display: none";
       return function(data, fileName, type) {
-        var blob = new Blob([data], {
-            type: type || "octet/stream"
-          }),
-          url = window.URL.createObjectURL(blob);
-        a.href = url;
+        var blob = new Blob([data], { type: type || "octet/stream" });
+        a.href = window.URL.createObjectURL(blob);
         a.download = fileName;
         a.click();
-        window.URL.revokeObjectURL(url);
+        window.URL.revokeObjectURL(a.href);
         document.body.removeChild(a);
       };
     }());
 
-    // return the first argument as result, used to simulate side effect
+    // return the first argument as result, used to simulate side effect such as forward after reading data.
     function conseq() {
       return arguments.length ? Array.prototype.shift.call(arguments) : void 0;
     }
 
+    // TODO: not finished
     function decrypt(buf, key) {
       var buflen = buf.length,
         keylen = keylen,
@@ -185,32 +162,25 @@ var TTTT;
     }
 
     var _v2,
-      _encrypted = [false, false],
-      _decoder,
-      _searchTextLen,
-      _readNum = function(scanner) {
-        return scanner.readInt();
-      },
-      _checksum_v2 = new Function(),
-      _readShort = function(scanner) {
-        return scanner.readUint8();
-      };
+        _encrypted = [false, false],
+        _decoder,
+        _searchTextLen,
+        _readNum = function(scanner) { return scanner.readInt(); },
+        _checksum_v2 = new Function(),
+        _readShort = function(scanner) { return scanner.readUint8(); };
 
     function init(attrs) {
+      attrs.Encoding = attrs.Encoding || 'UTF-16';
       _searchTextLen = (attrs.Encoding === 'UTF-16') ? function(buf, offset) {
-        var bytes = new Uint16Array(buf, offset),
-          len = 0,
-          size = bytes.length;
+        var bytes = new Uint16Array(buf, offset), len = 0, size = bytes.length;
         while (bytes[len++]) { /* loop */ }
         return len * 2;
       } : function(buf, offset) {
-        var bytes = new Uint8Array(buf, offset),
-          len = 0,
-          size = bytes.length;
+        var bytes = new Uint8Array(buf, offset), len = 0, size = bytes.length;
         while (bytes[len++]) { /* loop */ }
         return len;
       };
-      _decoder = new TextDecoder(attrs.Encoding);
+      _decoder = new TextDecoder(attrs.Encoding || 'UTF-16LE');
 
       if (parseInt(attrs.GeneratedByEngineVersion, 10) >= 2.0) {
         _v2 = true;
@@ -320,7 +290,7 @@ var TTTT;
       header_str = scanner.readUTF16(len).replace(/\0$/, ''); // need to remove endding NUL
 
       // parse dictionary attributes
-      var xml = toXml(header_str).querySelector('Dictionary').attributes,
+      var xml = toXml(header_str).querySelector('Dictionary, Library_Data').attributes,
         i, item;
 
       for (i = 0; i < xml.length; i++) {
@@ -351,12 +321,13 @@ var TTTT;
 
     function read_keyword(input, attrs, keyword_sect, unit) {
       var scanner = Scanner(input),
-        kscanner = scanner.readBlock(keyword_sect.key_index_comp_len),
-        kx, pos = START_KEY_BLOCK;
-      keyword_index = [];
+          kscanner = scanner.readBlock(keyword_sect.key_index_comp_len),
+          kx, pos = START_KEY_BLOCK,
+          keyword_index = [];
       pos = 0;
+      tail = _v2 ? 1 : 0;
       for (i = 0; i < keyword_sect.num_blocks; i++) {
-        kx = read_keyword_index(kscanner, unit);
+        kx = read_keyword_index(kscanner, unit, tail);
         kx.offset = pos;
         pos += kx.comp_size;
         keyword_index.push(kx);
@@ -368,8 +339,8 @@ var TTTT;
       return keyword_index;
     }
 
-    function read_keyword_index(scanner, unit) {
-      var size, tail = unit > 1 ? 0 : 1;
+    function read_keyword_index(scanner, unit, tail) {
+      var size; // tail = unit > 1 ? 0 : 1;
       return {
         num_entries: scanner.readNum(),
         first_size: size = scanner.readShort(),
@@ -524,12 +495,12 @@ var TTTT;
     function read_definition(input, offset, block) {
       var scanner = Scanner(input);
       scanner = scanner.readBlock(block.comp_size);
-      if (scanner.size() === block.decomp_size) {
+//      if (scanner.size() === block.decomp_size) {
         scanner.forward(offset - block.decomp_offset);
         return scanner.readText();
-      } else {
-        return '**NOT FOUND**';
-      }
+//      } else {
+//        return '**NOT FOUND**';
+//      }
     }
 
     function lookup(word) {
@@ -556,41 +527,12 @@ var TTTT;
         '<p> block: #' + JSON.stringify(block)));
     }
 
-    function xlookup(word) {
-      var kx,
-        lo = 0,
-        hi = keyword_index.length - 1,
-        a = (lo + hi) >> 1;
-
-      word = word.toLowerCase();
-      while (true) {
-        kx = keyword_index[a];
-        if (lo === hi) {
-          break;
-        }
-        if (word.localeCompare(kx.first_word) < 0) {
-          hi = a;
-        } else if (word.localeCompare(kx.last_word) > 0) {
-          lo = a;
-        } else {
-          break;
-        }
-        a = (lo + hi) >> 1;
-      }
-      console.log(kx);
-
-      // NEED TO ADJUST
-      // readPartial(kx.offset, kx.comp_size).call(read_key_block, attrs, kx).done(function() {});
-
-    };
 
     return willDone;
   };
 }));
 
-var $input = $('input');
-
-$input.on('change', accept);
+var $input = $('#dictfile').on('change', accept);
 
 function accept(e) {
   var $src = $(e.target);
@@ -599,6 +541,8 @@ function accept(e) {
 
   if (fileList.length > 0) {
     require(['mdictjs'], function(mdictjs) {
+      $('#word').on('keyup', function(e) { e.which === 13 && $('#btnLookup').click(); });
+      
       mdictjs(fileList[0]).done(function(lookup) {
         $('#btnLookup')
           .attr('disabled', false)
