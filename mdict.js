@@ -1,6 +1,7 @@
 
 var TTTT;
-(function (root, factory) {"use strict";
+(function (root, factory) {
+  "use strict";
 
   if (typeof define === 'function' && define.amd) {
     // AMD. Register as an anonymous module.
@@ -38,7 +39,7 @@ var TTTT;
         pack:   function() {
                   if (pos < arr.byteLength) {
                     arr = arr.subarray(0, pos / Float64Array.BYTES_PER_ELEMENT);
-                    view = new Uint32Array(arr.buffer, 0, pos / Uint32Array.BYTES_PER_ELEMENT);
+                    view = new Uint32Array(arr.buffer);
                   }
                   return view;
                 },
@@ -87,7 +88,6 @@ var TTTT;
                   pos += 2;
                   return this; 
                 },
-        debug:  function() { console.log(arr); return this; },
         find:   function(keyAt) {
                   var hi = (arr.length >> 1) - 1, lo = 0, i = (lo + hi) >> 1, val = arr[(i << 1) + 1];
 
@@ -115,6 +115,7 @@ var TTTT;
                     val = arr[(i << 1) + 1];
                   }
                 },
+        debug:  function() { console.log(arr); return this; },
         };
     })();
 
@@ -122,12 +123,19 @@ var TTTT;
     var START_KEY_BLOCK, START_RECORD_BLOCK;
 
 
-    var _HASHSEED = 0xFE179;
+    var _HASHSEED = 0xFE179, _KEYWORD_PATTERN = /(.*) \d+$/;
 
+    /**
+     * Calculate a 32-bit hash code for a string.
+     */
     function hash(str) {
+      var r = /(.*) \d+$/.exec(str);
       return MurmurHash3.hashString(str.toLowerCase(), 32, _HASHSEED);
     }
 
+    /**
+     * Save array buffer data as a download file. 
+     */
     var saveData = (function() {
       var a = document.createElement("a");
       document.body.appendChild(a);
@@ -142,9 +150,11 @@ var TTTT;
       };
     }());
 
-    // return the first argument as result, used to simulate side effect such as forward after reading data.
+    /**
+     * Return the first argument as result, used to simulate side effect such as forward after reading data.
+     */
     function conseq() {
-      return arguments.length ? Array.prototype.shift.call(arguments) : void 0;
+      return arguments[0];
     }
 
     // TODO: not finished
@@ -161,6 +171,19 @@ var TTTT;
       }
     }
 
+    /**
+     * Create a XML object from string.
+     */
+    function toXml(str) {
+      if (window.DOMParser) {
+        return (new DOMParser()).parseFromString(str, 'text/xml');
+      } else {
+        var obj = new ActiveXObject('Microsoft.XMLDOM');
+        obj.loadXML(str);
+        return obj;
+      }
+    }
+
     var _v2,
         _encrypted = [false, false],
         _decoder,
@@ -171,15 +194,17 @@ var TTTT;
 
     function init(attrs) {
       attrs.Encoding = attrs.Encoding || 'UTF-16';
-      _searchTextLen = (attrs.Encoding === 'UTF-16') ? function(buf, offset) {
-        var bytes = new Uint16Array(buf, offset), len = 0, size = bytes.length;
-        while (bytes[len++]) { /* loop */ }
-        return len * 2;
-      } : function(buf, offset) {
-        var bytes = new Uint8Array(buf, offset), len = 0, size = bytes.length;
-        while (bytes[len++]) { /* loop */ }
-        return len;
+      
+      _searchTextLen = (attrs.Encoding === 'UTF-16') ? function(dv, offset) {
+        var mark = offset;
+        while (dv.getUint16(offset)) { offset += 2; };
+        return [offset - mark, 2];
+      } : function(dv, offset) {
+        var mark = offset;
+        while (dv.getUint8(offset++)) {}
+        return [offset - mark, 0];
       };
+      
       _decoder = new TextDecoder(attrs.Encoding || 'UTF-16LE');
 
       if (parseInt(attrs.GeneratedByEngineVersion, 10) >= 2.0) {
@@ -201,6 +226,7 @@ var TTTT;
 
     function Scanner(buf) {
       var offset = 0;
+      var dv = new DataView(buf);
 
       var methods = {
         size: function() {
@@ -212,29 +238,26 @@ var TTTT;
         offset: function() {
           return offset;
         },
-        slice: function(len) {
-          return conseq(buf.slice(offset, offset + len), this.forward(len));
-        },
 
         readInt: function() {
-          return conseq(new DataView(buf, offset, 4).getUint32(0, false), this.forward(4));
+          return conseq(dv.getUint32(offset, false), this.forward(4));
         },
         readUint16: function() {
-          return conseq(new DataView(buf, offset, 2).getUint16(0, false), this.forward(2));
+          return conseq(dv.getUint16(offset, false), this.forward(2));
         },
         readUint8: function() {
-          return conseq(new DataView(buf, offset, 1).getUint8(0, false), this.forward(1));
+          return conseq(dv.getUint8(offset, false), this.forward(1));
         },
         readUTF16: function(len) {
-          return conseq(UTF_16LE.decode(buf.slice(offset, offset + len)), this.forward(len));
+          return conseq(UTF_16LE.decode(new Uint8Array(buf, offset, len)), this.forward(len));
         },
         readText: function(len, tail) {
-          if (arguments.length) {
-            return conseq(_decoder.decode(buf.slice(offset, offset + len)), this.forward(len + (tail || 0)));
-          } else { // NUL-tailed string
-            len = _searchTextLen(buf, offset);
-            return conseq(_decoder.decode(buf.slice(offset, offset + len)), this.forward(len));
+          if (arguments.length === 0) {
+            var r = _searchTextLen(dv, offset);
+            len = r[0];
+            tail = r[1]
           }
+          return conseq(_decoder.decode(new Uint8Array(buf, offset, len)), this.forward(len + (tail || 0)));
         },
         readShort: function() {
           return _readShort(this);
@@ -243,10 +266,7 @@ var TTTT;
           return _readNum(this);
         },
         checksum: function() {
-          // skip checksum
-          // return this.readInt();
-
-          return conseq(new Uint8Array(buf, offset, 4), this.forward(4));
+          return conseq(dv.getUint8(offset, 4), this.forward(4));
         },
         checksum_v2: function() {
           return _checksum_v2(this);
@@ -260,25 +280,16 @@ var TTTT;
             }
             return this;
           } else {
-            this.forward(8);
-            var tmp = this.slice(len - 8);
+            offset += 8; len -= 8;
+            var tmp = new Uint8Array(buf, offset, len);
             tmp = comp_type === 2 ? pako.inflate(tmp) : lzo1x.decompress(tmp, expectedBufSize, 32768);
+            this.forward(len);
             return Scanner(tmp.buffer);
           }
         },
       };
 
       return Object.create(methods);
-    }
-
-    function toXml(str) {
-      if (window.DOMParser) {
-        return (new DOMParser()).parseFromString(str, 'text/xml');
-      } else {
-        var obj = new ActiveXObject('Microsoft.XMLDOM');
-        obj.loadXML(str);
-        return obj;
-      }
     }
 
     function read_file_head(input) {
@@ -306,8 +317,9 @@ var TTTT;
       return attrs;
     }
 
-    function read_keyword_sect(input, attrs) {
+    function read_keyword_sect(input, start, attrs) {
       var scanner = Scanner(input);
+      scanner.forward(start);
       return {
         num_blocks: scanner.readNum(),
         num_entries: scanner.readNum(),
@@ -315,7 +327,7 @@ var TTTT;
         key_index_comp_len: scanner.readNum(),
         key_blocks_len: scanner.readNum(),
         chksum: scanner.checksum_v2(),
-        len: scanner.offset(),
+        len: scanner.offset() - start,
       };
     }
 
@@ -352,9 +364,8 @@ var TTTT;
       };
     }
 
-    function read_key_block(input, kx) {
-      var scanner = Scanner(input.slice(kx.offset, kx.offset + kx.comp_size)),
-        i, kb, txt, h, kt_item, kt_node;
+    function read_key_block(scanner, kx) {
+      var i, kb, txt, h, kt_item, kt_node;
       scanner = scanner.readBlock(kx.comp_size, kx.decomp_size);
       if (scanner.size() === kx.decomp_size) {
         for (i = 0; i < kx.num_entries; i++) {
@@ -366,12 +377,12 @@ var TTTT;
           i === 0 && console.log(' * ' + i, kb);
           KEY_TABLE.put(h, kb.offset);
         }
-        console.log(' * ' + i, kb);
       } else {
         console.log('Failed to decompress LZO data block:')
         console.log('  mdx size =   ' + kx.decomp_size);
         console.log('  lzo size =   ' + scanner.size());
       }
+      console.log(' * ' + i, kb);
     }
 
     function read_record_sect(input) {
@@ -446,7 +457,7 @@ var TTTT;
         console.log('attrs: ', attrs, this);
         pos += len + 4;
 
-        var keyword_sect = read_keyword_sect(input.slice(len + 4), attrs);
+        var keyword_sect = read_keyword_sect(input, len + 4, attrs);
 
         TTTT = KEY_TABLE.alloc(keyword_sect.num_entries);
 
@@ -460,12 +471,12 @@ var TTTT;
         var unit = (attrs.Encoding === 'UTF-16') ? 2 : 1;
         readPartial(pos, len).call(read_keyword, attrs, keyword_sect, unit)
           .done(function(keyword_index, input) {
-            var i = 0,
-              size = keyword_index.length;
-            input = input.slice(keyword_sect.key_index_comp_len);
+            var scanner = Scanner(input), 
+                i = 0, size = keyword_index.length;
+            scanner.forward(keyword_sect.key_index_comp_len);
             for (; i < size; i++) {
               console.log('== key block # ' + i);
-              read_key_block(input, keyword_index[i]);
+              read_key_block(scanner, keyword_index[i]);
             }
 
             KEY_TABLE.debug();
@@ -538,7 +549,8 @@ function accept(e) {
   var $src = $(e.target);
   var fileList = $src.prop('files');
 
-
+  $('#btnLookup').attr('disabled', true);
+  
   if (fileList.length > 0) {
     require(['mdictjs'], function(mdictjs) {
       $('#word').on('keyup', function(e) { e.which === 13 && $('#btnLookup').click(); });
