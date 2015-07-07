@@ -5,14 +5,15 @@ var TTTT;
 
   if (typeof define === 'function' && define.amd) {
     // AMD. Register as an anonymous module.
-    define('mdictjs', ['jquery', 'pako_inflate'], factory);
+    define('mdictjs', ['jquery', 'pako_inflate', 'ripemd128'], factory);
   } else {
     // Browser globals
-    factory(jQuery, pako);
+    factory(jQuery, pako, ripemd128);
   }
 
-}(this, function($, pako) {
-
+}(this, function($, pako, ripemd128) {
+  ripemd128 = window.ripemd128;
+  
   return function parse_mdict(file) {
 
     var UTF_16LE = new TextDecoder('utf-16le'), attrs = {}, willDone = $.Deferred();
@@ -32,14 +33,14 @@ var TTTT;
                   return this; 
                 },
         put:    function(hash, offset) {
-                  view.set([hash, offset], pos / Uint32Array.BYTES_PER_ELEMENT);
-                  pos += Float64Array.BYTES_PER_ELEMENT;
+                  view[pos++] = hash;
+                  view[pos++] = offset;
                   return this;
                 },
         pack:   function() {
-                  if (pos < arr.byteLength) {
-                    arr = arr.subarray(0, pos / Float64Array.BYTES_PER_ELEMENT);
-                    view = new Uint32Array(arr.buffer);
+                  if (pos * 2 < arr.byteLength) {
+                    view = view.subarray(0, pos);
+                    arr = new Float64Array(view.buffer);
                   }
                   return view;
                 },
@@ -84,8 +85,8 @@ var TTTT;
                   return this; 
                 },
         put:    function(offset_comp, offset_decomp) { 
-                  arr.set([offset_comp, offset_decomp], pos);
-                  pos += 2;
+                  arr[pos++] = offset_comp;
+                  arr[pos++] = offset_decomp;
                   return this; 
                 },
         find:   function(keyAt) {
@@ -123,13 +124,12 @@ var TTTT;
     var START_KEY_BLOCK, START_RECORD_BLOCK;
 
 
-    var _HASHSEED = 0xFE179, _KEYWORD_PATTERN = /(.*) \d+$/;
+    var _HASHSEED = 0xFE179;
 
     /**
      * Calculate a 32-bit hash code for a string.
      */
     function hash(str) {
-      var r = /(.*) \d+$/.exec(str);
       return MurmurHash3.hashString(str.toLowerCase(), 32, _HASHSEED);
     }
 
@@ -159,16 +159,18 @@ var TTTT;
 
     // TODO: not finished
     function decrypt(buf, key) {
+      key = ripemd128(key);
       var buflen = buf.length,
-        keylen = keylen,
-        i, byte, prev, old;
+          keylen = key.length,
+          i, byte, prev = 0x36;
       for (i = 0; i < buflen; i++) {
-        byte = old = buf[i];
-        byte = (byte >> 4) | (byte << 4);
-        byte = byte ^ (i & 0xFF) ^ key[i % keylen] ^ prev;
-        prev = old;
+        byte = buf[i];
+        byte = ((byte >> 4) | (byte << 4) ) & 0xFF;
+        byte = byte  ^ prev ^ (i & 0xFF) ^ key[i % keylen];
+        prev = buf[i];
         buf[i] = byte;
       }
+      return buf;
     }
 
     /**
@@ -197,7 +199,7 @@ var TTTT;
       
       _searchTextLen = (attrs.Encoding === 'UTF-16') ? function(dv, offset) {
         var mark = offset;
-        while (dv.getUint16(offset)) { offset += 2; };
+        while (dv.getUint16(offset++)) {};
         return [offset - mark, 2];
       } : function(dv, offset) {
         var mark = offset;
@@ -211,6 +213,7 @@ var TTTT;
         _v2 = true;
 
         _readNum = function(scanner) {
+          // not going to handle HUGE dictionary file (>4G) inside browser!
           scanner.forward(4);
           return scanner.readInt();
         };
@@ -221,16 +224,20 @@ var TTTT;
           return scanner.checksum();
         };
       }
+      
+      if (attrs.Encrypted & 0x02) {
+        _encrypted[1] = decrypt; 
+      }
 
     }
 
-    function Scanner(buf) {
+    function Scanner(buf, len) {
       var offset = 0;
       var dv = new DataView(buf);
 
       var methods = {
         size: function() {
-          return buf.byteLength;
+          return len || buf.byteLength;
         },
         forward: function(len) {
           return offset += len;
@@ -255,9 +262,11 @@ var TTTT;
           if (arguments.length === 0) {
             var r = _searchTextLen(dv, offset);
             len = r[0];
-            tail = r[1]
+            tail = r[1];
+//        } else {
+//          return this.forward(len + tail);
           }
-          return conseq(_decoder.decode(new Uint8Array(buf, offset, len)), this.forward(len + (tail || 0)));
+            return conseq(_decoder.decode(new Uint8Array(buf, offset, len)), this.forward(len + (tail || 0)));
         },
         readShort: function() {
           return _readShort(this);
@@ -266,14 +275,14 @@ var TTTT;
           return _readNum(this);
         },
         checksum: function() {
-          return conseq(dv.getUint8(offset, 4), this.forward(4));
+          return conseq(new Uint8Array(buf, offset, 4), this.forward(4));
         },
         checksum_v2: function() {
           return _checksum_v2(this);
         },
 
-        readBlock: function(len, expectedBufSize) {
-          var comp_type = new Uint8Array(buf, offset, 1)[0];
+        readBlock: function(len, expectedBufSize, decryptor) {
+          var comp_type = dv.getUint8(offset, false);
           if (comp_type === 0) {
             if (_v2) {
               this.forward(8);
@@ -282,9 +291,17 @@ var TTTT;
           } else {
             offset += 8; len -= 8;
             var tmp = new Uint8Array(buf, offset, len);
-            tmp = comp_type === 2 ? pako.inflate(tmp) : lzo1x.decompress(tmp, expectedBufSize, 32768);
+            if (decryptor) {
+//              var passkey = createKey(new Uint8Array(buf, offset - 4, 4));
+              var passkey = new Uint8Array(8);
+              passkey.set(new Uint8Array(buf, offset - 4, 4));
+              passkey.set([0x95, 0x36, 0x00, 0x00], 4);
+              tmp = decryptor(tmp, passkey);
+            }
+            
+            tmp = comp_type === 2 ? pako.inflate(tmp) : lzo1x.decompress(tmp, expectedBufSize, 4096);
             this.forward(len);
-            return Scanner(tmp.buffer);
+            return Scanner(tmp.buffer, tmp.byteLength);
           }
         },
       };
@@ -333,11 +350,15 @@ var TTTT;
 
     function read_keyword(input, attrs, keyword_sect, unit) {
       var scanner = Scanner(input),
-          kscanner = scanner.readBlock(keyword_sect.key_index_comp_len),
+          kscanner = scanner.readBlock(keyword_sect.key_index_comp_len, keyword_sect.key_index_decomp_len, _encrypted[1]),
           kx, pos = START_KEY_BLOCK,
           keyword_index = [];
       pos = 0;
       tail = _v2 ? 1 : 0;
+      if (attrs.Encoding === 'UTF-16') {
+        tail *= 2;
+      }
+      
       for (i = 0; i < keyword_sect.num_blocks; i++) {
         kx = read_keyword_index(kscanner, unit, tail);
         kx.offset = pos;
@@ -352,8 +373,8 @@ var TTTT;
     }
 
     function read_keyword_index(scanner, unit, tail) {
-      var size; // tail = unit > 1 ? 0 : 1;
-      return {
+      var size, kx; // tail = unit > 1 ? 0 : 1;
+      return kx = {
         num_entries: scanner.readNum(),
         first_size: size = scanner.readShort(),
         first_word: scanner.readText(size * unit, tail),
@@ -365,24 +386,21 @@ var TTTT;
     }
 
     function read_key_block(scanner, kx) {
-      var i, kb, txt, h, kt_item, kt_node;
+      var offset, key, h;
       scanner = scanner.readBlock(kx.comp_size, kx.decomp_size);
       if (scanner.size() === kx.decomp_size) {
-        for (i = 0; i < kx.num_entries; i++) {
-          kb = {
-            offset: scanner.readNum(),
-            key: txt = scanner.readText(),
-            hash: h = hash(txt),
-          }
-          i === 0 && console.log(' * ' + i, kb);
-          KEY_TABLE.put(h, kb.offset);
+        for (var i = 0, size = kx.num_entries; i < size; i++) {
+          offset = scanner.readNum();
+          key = scanner.readText();
+          h = hash(key);
+          KEY_TABLE.put(h, offset);
         }
       } else {
         console.log('Failed to decompress LZO data block:')
         console.log('  mdx size =   ' + kx.decomp_size);
         console.log('  lzo size =   ' + scanner.size());
       }
-      console.log(' * ' + i, kb);
+      console.log(' * ' + i, key);
     }
 
     function read_record_sect(input) {

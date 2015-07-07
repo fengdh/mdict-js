@@ -62,17 +62,15 @@ var lzo1x = (function () {
         return buf = new bufType(l = initSize || 8192);
       },
       require: function(n) {
-        if (n !== 0) {
-          if (l - c < (n = n || 1)) {
-            var buf2 = new bufType(l += blockSize);
-            buf2.set(buf);
-            buf = buf2;
-          }
-          c += n;
+        if (l - c < n) {
+          var buf2 = new bufType(l += blockSize * Math.ceil( (l - c + n ) / blockSize ));
+          buf2.set(buf);
+          buf = buf2;
         }
+        c += n;
         return buf;
       },
-      pack: function() { return new bufType(buf.buffer.slice(0, c * bufType.BYTES_PER_ELEMENT)); }
+      pack: function(size) { return buf.subarray(0, size || c); },
     };
   }
 
@@ -84,21 +82,16 @@ var lzo1x = (function () {
   var c_match_next=6;
   
   function decompress(inBuf, bufInitSize, bufBlockSize) {
-    var in_len = inBuf.byteLength;
-
-    var buf = new FlexBuffer(Uint8Array, bufBlockSize);
-    var out = buf.alloc(bufInitSize);
+    var buf = new FlexBuffer(Uint8Array, bufBlockSize),
+        out = buf.alloc(bufInitSize);
     
     var op=0,
         ip=0,
-        t,
+        t = inBuf[ip],
         state = c_top_loop, 
-        max = 0, diff = 0, min = 0,
         m_pos=0,
-        ip_end = in_len;
+        ip_end = inBuf.byteLength;
 
-
-    t = (inBuf[ip] & 0xff);
     if (t > 17) {
       ip++;
       t -= 17;
@@ -112,67 +105,40 @@ var lzo1x = (function () {
         state=c_first_literal_run;//goto first_literal_run;
       }
     }
+    
 top_loop_ori: do{
     var if_block=false;
-    switch(state) {
-            //while (true)  top_loop_ori
+    switch(state) { //while (true)  top_loop_ori
         case c_top_loop:  
-            t = (inBuf[ip++] & 0xff);
+            t = inBuf[ip++];
             if (t >= 16){
               state=c_match; continue top_loop_ori; //goto match;
             }
-            if (t == 0) {
-              while (inBuf[ip] == 0) {
+            if (t === 0) {
+              while (inBuf[ip] === 0) {
                 t += 255;
                 ip++;
               }
-              t += 15 + (inBuf[ip++] & 0xff);
+              t += 15 + inBuf[ip++];
             }
 
             //s=3; do out[op++] = inBuf[ip++]; while(--s > 0);//* (lzo_uint32 *)(op) = * (const lzo_uint32 *)(ip);op += 4; ip += 4;
             out = buf.require(4);
-            out[op] = inBuf[ip];
-            out[op+1] = inBuf[ip+1];
-            out[op+2] = inBuf[ip+2];
-            out[op+3] = inBuf[ip+3];
-            op += 4; ip += 4;
-            //op++; ip++; //GSSM ?? for the forth byte
+            out[op++] = inBuf[ip++];
+            out[op++] = inBuf[ip++];
+            out[op++] = inBuf[ip++];
+            out[op++] = inBuf[ip++];
             
             if (--t > 0) {
-              if (t >= 4) {
-                do {
-                  //* (lzo_uint32 *)(op) = * (const lzo_uint32 *)(ip);
-                  //op += 4; ip += 4; t -= 4;
-                  out = buf.require(4);
-                  out[op] = inBuf[ip];
-                  out[op+1] = inBuf[ip+1];
-                  out[op+2] = inBuf[ip+2];
-                  out[op+3] = inBuf[ip+3];
-                  op += 4; ip += 4; t -= 4;
-                } while (t >= 4);
-                if (t > 0)  {
-                  out = buf.require(t);
-                  do { 
-                    out[op++] = inBuf[ip++]; 
-                  } while (--t > 0);
-                }
-              } else {
-                out = buf.require(t);
-                do out[op++] = inBuf[ip++]; while (--t > 0);
-              }
+              out = buf.require(t);
+              do out[op++] = inBuf[ip++]; while (--t > 0);
             }
        case c_first_literal_run: /*first_literal_run: */
-            t = (inBuf[ip++] & 0xff);
+            t = inBuf[ip++];
             if (t >= 16) {
               state=c_match; continue top_loop_ori;  //goto match;
             }
-            //m_pos = op - (1 + 0x0800);
-            //m_pos -= t >> 2;
-            //m_pos -= U(inBuf[ip++]) << 2;
-            m_pos = op - 0x801 - (t >> 2) - ((inBuf[ip++] & 0xff) << 2);
-            diff=Math.abs(m_pos - op); if(diff > max) max=diff;
-            diff=(m_pos - op); if(diff < min) min=diff;
-            //*op++ = *m_pos++; *op++ = *m_pos++; *op++ = *m_pos;
+            m_pos = op - 0x801 - (t >> 2) - (inBuf[ip++] << 2);
             out = buf.require(3);
             out[op++] = out[m_pos++]; out[op++] = out[m_pos++]; out[op++] = out[m_pos];
 
@@ -183,99 +149,69 @@ top_loop_ori: do{
             if (t >= 64) {
               m_pos = op - 1;
               m_pos -= (t >> 2) & 7;
-              m_pos -= (inBuf[ip++] & 0xff) << 3;
-              diff=Math.abs(m_pos - op); if(diff > max) max=diff;
-              diff=(m_pos - op); if(diff < min) min=diff;
+              m_pos -= inBuf[ip++] << 3;
               t = (t >> 5) - 1;
               state = c_copy_match; continue top_loop_ori;//goto copy_match;
 
             } else if (t >= 32) {
               t &= 31;
-              if (t == 0) {
-                while (inBuf[ip] == 0) {
+              if (t === 0) {
+                while (inBuf[ip] === 0) {
                   t += 255;
                   ip++;
                 }
-                t += 31 + (inBuf[ip++] & 0xff);
+                t += 31 + inBuf[ip++];
               }
               m_pos = op - 1;
-              m_pos -= (( (inBuf[ip] & 0xff) + ( (inBuf[ip+1] & 0xff) << 8) ) >> 2);//m_pos -= (* (const unsigned short *) ip) >> 2;
-              diff=Math.abs(m_pos - op); if(diff > max) max=diff;
-              diff=(m_pos - op); if(diff < min) min=diff;
+              m_pos -= (( inBuf[ip] + ( inBuf[ip+1] << 8) ) >> 2);//m_pos -= (* (const unsigned short *) ip) >> 2;
               
               ip += 2;
             } else if (t >= 16) {
               m_pos = op;
               m_pos -= (t & 8) << 11;
-              diff=Math.abs(m_pos - op); if(diff > max) max=diff;
-              diff=(m_pos - op); if(diff < min) min=diff;
               
               t &= 7;
-              if (t == 0) {
-                while (inBuf[ip] == 0) {
+              if (t === 0) {
+                while (inBuf[ip] === 0) {
                   t += 255;
                   ip++;
                 }
-                t += 7 + (inBuf[ip++] & 0xff);
+                t += 7 + inBuf[ip++];
               }
-              m_pos -= (( (inBuf[ip] & 0xff) + ( (inBuf[ip+1] & 0xff) << 8) ) >> 2);//m_pos -= (* (const unsigned short *) ip) >> 2;
-              diff=Math.abs(m_pos - op); if(diff > max) max=diff;
-              diff=(m_pos - op); if(diff < min) min=diff;
+              m_pos -= (( inBuf[ip] + ( inBuf[ip+1] << 8) ) >> 2);//m_pos -= (* (const unsigned short *) ip) >> 2;
               ip += 2;
-              if (m_pos == op){
+              if (m_pos === op){
                 break top_loop_ori;//goto eof_found;
               }
               m_pos -= 0x4000;
             } else {
               m_pos = op - 1;
               m_pos -= t >> 2;
-              m_pos -= (inBuf[ip++] & 0xff) << 2;
-              diff=Math.abs(m_pos - op); if(diff > max) max=diff;
-              diff=(m_pos - op); if(diff < min) min=diff;
+              m_pos -= inBuf[ip++] << 2;
               
               out = buf.require(2);
-              out[op++] = out[m_pos++]; out[op++] = out[m_pos];//*op++ = *m_pos++; *op++ = *m_pos;
+              out[op++] = out[m_pos++]; out[op++] = out[m_pos];
               state=c_match_done;continue top_loop_ori;//goto match_done;
             }
-            if (t >= 2 * 4 - (3 - 1) && (op - m_pos) >= 4) {
-              if_block=true;
-              //* (lzo_uint32 *)(op) = * (const lzo_uint32 *)(m_pos);
-              out = buf.require(4);
-              out[op] = out[m_pos];
-              out[op+1] = out[m_pos+1];
-              out[op+2] = out[m_pos+2];
-              out[op+3] = out[m_pos+3];
-              op += 4; m_pos += 4; t -= 2;
-
+            if (t >= 6 && (op - m_pos) >= 4) {
+              t += 2;
               out = buf.require(t);
-              do {
-                /// * (lzo_uint32 *)(op) = * (const lzo_uint32 *)(m_pos);
-                out[op] = out[m_pos];
-                out[op+1] = out[m_pos+1];
-                out[op+2] = out[m_pos+2];
-                out[op+3] = out[m_pos+3];
-                op += 4; m_pos += 4; t -= 4;
-              } while (t >= 4);
-              if (t > 0) do out[op++] = out[m_pos++]; while (--t > 0);
-            }// else 
+              if_block=true;
+              do out[op++] = out[m_pos++]; while (--t > 0);
+            }
        case c_copy_match: if(!if_block){
-                     //*op++ = *m_pos++; *op++ = *m_pos++;
-                     out = buf.require(2);
-                     out[op++]= out[m_pos++]; out[op++]= out[m_pos++];
-                     //do *op++ = *m_pos++; while (--t > 0);
+                     t += 2;
                      out = buf.require(t);
                      do out[op++] = out[m_pos++]; while( --t > 0) ;
                    }
        case c_match_done:
-                   t = (inBuf[ip-2] & 0xff) & 3;
-                   if (t == 0){
+                   t = inBuf[ip-2] & 3;
+                   if (t === 0){
                      state=c_top_loop; continue top_loop_ori; //break;
                    }
        case c_match_next: 
-                   //*op++ = *ip++;
                    out = buf.require(1);
                    out[op++] = inBuf[ip++];
-                   //if (t > 1) { *op++ = *ip++; if (t > 2) { *op++ = *ip++; } }
                    if (t > 1) { 
                      out = buf.require(1);
                      out[op++] = inBuf[ip++]; 
@@ -284,27 +220,14 @@ top_loop_ori: do{
                        out[op++] = inBuf[ip++]; 
                      } 
                    }
-                   t = (inBuf[ip++] & 0xff);
+                   t = inBuf[ip++];
                    state=c_match; continue top_loop_ori;
-                   //}// while (1);
-                   //// state=c_top_loop; continue top_loop_ori;
         }
     }while(true);
 
-    //eof_found:
-    //out_len = ((lzo_uint) ((op)-(out)));
-//    console.log("\n@@@@@@@@@@@@ diff:"+max+": min:"+min+"\n");
-    //return (ip == ip_end ? 0 : (ip < ip_end ? (-8) : (-4)));
-    //return (ip == inBuf.length ? 0 : (ip < inBuf.length ? (-8) : (-4)));
-    
-    return buf.pack();
+    return buf.pack(op);
   }
   
-  function n_decompress(buf) {
-    var state = {inputBuffer: buf};
-    lzo1x_decompress_safe(state);
-    return state.outputBuffer;
-  }
 
   return {
     decompress: function(s, bufInitSize, bufBlockSize) {
