@@ -14,7 +14,7 @@ var TTTT;
 }(this, function($, pako, ripemd128) {
   ripemd128 = window.ripemd128;
   
-  return function parse_mdict(file) {
+  function parse_mdict(file, ext) {
 
     var UTF_16LE = new TextDecoder('utf-16le'), attrs = {}, willDone = $.Deferred();
 
@@ -263,10 +263,8 @@ var TTTT;
             var r = _searchTextLen(dv, offset);
             len = r[0];
             tail = r[1];
-//        } else {
-//          return this.forward(len + tail);
           }
-            return conseq(_decoder.decode(new Uint8Array(buf, offset, len)), this.forward(len + (tail || 0)));
+          return conseq(_decoder.decode(new Uint8Array(buf, offset, len)), this.forward(len + (tail || 0)));
         },
         readShort: function() {
           return _readShort(this);
@@ -292,7 +290,6 @@ var TTTT;
             offset += 8; len -= 8;
             var tmp = new Uint8Array(buf, offset, len);
             if (decryptor) {
-//              var passkey = createKey(new Uint8Array(buf, offset - 4, 4));
               var passkey = new Uint8Array(8);
               passkey.set(new Uint8Array(buf, offset - 4, 4));
               passkey.set([0x95, 0x36, 0x00, 0x00], 4);
@@ -303,6 +300,10 @@ var TTTT;
             this.forward(len);
             return Scanner(tmp.buffer, tmp.byteLength);
           }
+        },
+        
+        readBlob: function(len) {
+          return conseq(new Uint8Array(buf), this.forward(len));
         },
       };
 
@@ -513,7 +514,7 @@ var TTTT;
                   console.log('record_sect: ', record_sect);
                   console.log('RECORD BLOCK TABLE: ');
                   RECORD_BLOCK_TABLE.debug();
-                  willDone.resolve(lookup);
+                  willDone.resolve();
                 });
             });
           });
@@ -524,41 +525,107 @@ var TTTT;
     function read_definition(input, offset, block) {
       var scanner = Scanner(input);
       scanner = scanner.readBlock(block.comp_size);
-//      if (scanner.size() === block.decomp_size) {
-        scanner.forward(offset - block.decomp_offset);
-        return scanner.readText();
-//      } else {
-//        return '**NOT FOUND**';
-//      }
+      scanner.forward(offset - block.decomp_offset);
+      return scanner.readText();
     }
 
-    function lookup(word) {
-      word = word.trim().toLowerCase();
-      var result = $.Deferred(),
-        hashcode = hash(word)
-      console.log(hashcode);
-      var offset = KEY_TABLE.find(hashcode);
-      if (offset >= 0) {
-        var block = RECORD_BLOCK_TABLE.find(offset);
-        readPartial(block.comp_offset, block.comp_size).call(read_definition, offset, block)
-          .done(function(definition) {
-            result.resolve(definition);
-          }).fail(function() {
-            result.reject();
-          });
+    function read_object(input, offset, block) {
+      var scanner = Scanner(input);
+      scanner = scanner.readBlock(block.comp_size);
+      scanner.forward(offset - block.decomp_offset);
+      return scanner.readBlob(block.decomp_size);
+    }
 
-      } else {
-        result.reject();
+    // TODO: search nearest in case of collision of hashcode
+    LOOKUP = {
+      mdx: function(word) {
+        word = word.trim().toLowerCase();
+        var result = $.Deferred(),
+          hashcode = hash(word)
+        console.log(hashcode);
+        var offset = KEY_TABLE.find(hashcode);
+        if (offset >= 0) {
+          var block = RECORD_BLOCK_TABLE.find(offset);
+          readPartial(block.comp_offset, block.comp_size).call(read_definition, offset, block)
+            .done(function (definition) {
+              result.resolve(definition);
+            }).fail(function () {
+              result.reject();
+            });
+
+        } else {
+          result.reject();
+        }
+
+        return result.promise(new String('OK! ' +
+          '<p> hashcode: ' + hashcode +
+          '<p> offset: ' + offset +
+          '<p> block: #' + JSON.stringify(block)));
+      },
+      mdd: function(word) {
+        word = word.trim().toLowerCase();
+        word = '\\' + word.replace(/^[/\\]/, '');
+        var result = $.Deferred(),
+            hashcode = hash(word)
+        console.log(hashcode);
+        var offset = KEY_TABLE.find(hashcode);
+        if (offset >= 0) {
+          var block = RECORD_BLOCK_TABLE.find(offset);
+          readPartial(block.comp_offset, block.comp_size).call(read_object, offset, block)
+            .done(function (blob) {
+              result.resolve(blob);
+            }).fail(function () {
+              result.reject();
+            });
+
+        } else {
+          result.reject();
+        }
+
+        return result.promise();
       }
-      return result.promise(new String('OK! ' +
-        '<p> hashcode: ' + hashcode +
-        '<p> offset: ' + offset +
-        '<p> block: #' + JSON.stringify(block)));
-    }
-
-
-    return willDone;
+    }    
+    return willDone.promise({lookup: LOOKUP[ext]});
   };
+  
+  
+  return function load(files) {
+    var willReady = $.Deferred(),
+        dicts = [];
+    
+    Array.prototype.forEach.call(files, function(f) {
+      var ext =  /(?:\.([^.]+))?$/.exec(f.name)[1] || 'mdx',
+          d = parse_mdict(f, ext);
+      dicts.push(d);
+      dicts[ext] = d;
+    });
+    
+    function lookup(word) {
+      var willFound = $.Deferred();
+      (dicts['mdx'] || dicts['mdd']).lookup(word).done(function(definition) {
+        var $content = $('div').html(definition);
+        if (dicts['mdd']) {
+          $content.find('img[src]').each(function() {
+            var $this = $(this);
+            dicts['mdd'].lookup($this.attr('src')).done(function(blob) {
+              blob = new Blob([blob], {type: 'image'});
+              var url = URL.createObjectURL(blob);
+              // TODO: need to call window.URL.revokeObjectURL() to release memory
+              $this.attr('src', url);
+            });
+          });
+        }
+        willFound.resolve($content);
+      });
+  
+      return willFound.promise();
+    }
+    
+    $.when.apply(null, dicts).done(function() {
+      willReady.resolve(lookup);
+    });
+    return willReady.promise();
+  }
 }));
 
 var $input = $('#dictfile').on('change', accept);
@@ -573,13 +640,13 @@ function accept(e) {
     require(['mdictjs'], function(mdictjs) {
       $('#word').on('keyup', function(e) { e.which === 13 && $('#btnLookup').click(); });
       
-      mdictjs(fileList[0]).done(function(lookup) {
+      mdictjs(fileList).done(function(lookup) {
         $('#btnLookup')
           .attr('disabled', false)
           .off('.#mdict')
           .on('click.#mdict', function() {
-            var result = lookup($('#word').val()).done(function(definition) {
-              $('#definition').html(definition);
+            var result = lookup($('#word').val()).done(function($content) {
+              $('#definition').contents().replaceWith($content.contents());
             });
             $('#definition').html(result);
           });
