@@ -1,4 +1,23 @@
 /*
+ * AMD/Node module wrapper for http://github.com/whitequark/murmurhash3-js.
+ * By Feng Dihai <fengdh@gmail.com>, 2015/07/09
+ *
+ * This file is free software released into public domain.
+ * 
+ *
+ * RIPEMD-128 (c) 1996 Hans Dobbertin, Antoon Bosselaers, and Bart Preneel
+ */
+
+(function(global, define) {
+
+  // define module and also export to global
+  define(function (require, exports, module) {
+      module.exports = MurmurHash3;
+      global.MurmurHash3 = MurmurHash3;
+      return MurmurHash3;
+  });  
+  
+/*
  *  The MurmurHash3 algorithm was created by Austin Appleby.  This JavaScript port was authored
  *  by Peter Zotov (based on Java port by Yonik Seeley) and is placed into the public domain.
  *  The author hereby disclaims copyright to this source code.
@@ -15,7 +34,6 @@
  *
  *  See http://github.com/whitequark/murmurhash3-js for future updates to this file.
  */
-
 var MurmurHash3 = {
 	mul32: function(m, n) {
 		var nlo = n & 0xffff;
@@ -114,6 +132,10 @@ var MurmurHash3 = {
 	}
 };
 
-if(typeof module !== "undefined" && typeof module.exports !== "undefined") {
-	module.exports = MurmurHash3;
-}
+    
+}( this, // refers to global
+   // Help Node out by setting up define.
+   typeof module === 'object' && typeof define !== 'function'
+     ? function (factory) { module.exports = factory(require, exports, module); } 
+     : define
+));

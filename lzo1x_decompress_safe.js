@@ -43,12 +43,14 @@
 */
 function lzo1x_decompress_safe ( state ) {
     var buf = state.inputBuffer;
+    var blockSize = 4096;
     var out = new Uint8Array(Math.ceil(buf.length / blockSize) * blockSize);
     var cbl = out.length;
     state.outputBuffer = out;
     var ip_end = buf.length;
     var op_end = out.length;
-    var t;
+    var t = 0;
+
     var ip = 0;
     var op = 0;
     var m_pos = 0;
@@ -59,7 +61,6 @@ function lzo1x_decompress_safe ( state ) {
     var LOOKBEHIND_OVERRUN = -6;
     var EOF_FOUND = -999;
 
-    var blockSize = 4096;
     function extendBuffer() {
         var newBuffer = new Uint8Array(cbl + blockSize);
         newBuffer.set(out);
@@ -77,6 +78,8 @@ function lzo1x_decompress_safe ( state ) {
     function match_next() {
         // if (op_end - op < t) return OUTPUT_OVERRUN;
         // if (ip_end - ip < t+3) return INPUT_OVERRUN;
+
+        while(op + 3 > cbl) {extendBuffer();}
 
         out[op++] = buf[ip++];
         if (t > 1) {
@@ -96,10 +99,10 @@ function lzo1x_decompress_safe ( state ) {
 
     function copy_match() {
         t += 2;
-        if(op + t > cbl) extendBuffer();
+        while(op + t > cbl) {extendBuffer();}
         do {
             out[op++] = out[m_pos++];
-        } while (--t > 0);
+        } while(--t > 0);
     }
 
     function match() {
@@ -174,7 +177,7 @@ function lzo1x_decompress_safe ( state ) {
 
                 // if (m_pos < out || m_pos >= op) return LOOKBEHIND_OVERRUN;
                 // if (op_end - op < 2) return OUTPUT_OVERRUN;
-                if(op + 2 > cbl) extendBuffer();
+                while(op + 2 > cbl) {extendBuffer();}
                 out[op++] = out[m_pos++];
                 out[op++] = out[m_pos];
 
@@ -216,7 +219,7 @@ function lzo1x_decompress_safe ( state ) {
         } else {
             // if (op_end - op < t) return OUTPUT_OVERRUN;
             // if (ip_end - ip < t+3) return INPUT_OVERRUN;
-            if(op + t > cbl) extendBuffer();
+            while(op + t > cbl) {extendBuffer();}
             do {
                 out[op++] = buf[ip++];
             } while (--t > 0);
@@ -250,15 +253,8 @@ function lzo1x_decompress_safe ( state ) {
             // if (ip_end - ip < t+6) return INPUT_OVERRUN;
 
             t += 3;
-            // if (t >= 8) do {
-            //     * (volatile lzo_memops_TU8 *) (void *) (op) = * (const volatile lzo_memops_TU8 *) (const void *) (ip);
-            //     op += 8; ip += 8; t -= 8;
-            // } while (t >= 8);
-            // if (t >= 4) {
-            //     * (volatile lzo_memops_TU4 *) (void *) (op) = * (const volatile lzo_memops_TU4 *) (const void *) (ip);
-            //     op += 4; ip += 4; t -= 4;
-            // }
-            if(op + t > cbl) extendBuffer();
+
+            while(op + t > cbl) {extendBuffer();}
             do {
                 out[op++] = buf[ip++];
             } while (--t > 0);
@@ -273,7 +269,7 @@ function lzo1x_decompress_safe ( state ) {
 
             // if ( m_pos <  out || m_pos >= op) return LOOKBEHIND_OVERRUN;
             // if (op_end - op < 3) return OUTPUT_OVERRUN;
-            if(op + 3 > cbl) extendBuffer();
+            while(op + 3 > cbl) {extendBuffer();}
             out[op++] = out[m_pos++];
             out[op++] = out[m_pos++];
             out[op++] = out[m_pos];
@@ -292,7 +288,5 @@ function lzo1x_decompress_safe ( state ) {
         }
     }
 
-    console.log('LZO size: ' + op);
     return OK;
 }
-

@@ -1,12 +1,41 @@
-// RIPEMD-128 (c) 1996 Hans Dobbertin, Antoon Bosselaers, and Bart Preneel
-(function (global) {
+/*
+ * A pure JavaScript implementation of RIPEMD128 using Uint8Array as input/output.
+ * By Feng Dihai <fengdh@gmail.com>, 2015/07/09
+ *
+ * Based on coiscir/jsdigest (https://github.com/coiscir/jsdigest/blob/master/src/hash/ripemd128.js)
+ * 
+ * ripemd128.js is free software released under terms of the MIT License.
+ * You can get a copy on http://opensource.org/licenses/MIT.
+ * 
+ *
+ * RIPEMD-128 (c) 1996 Hans Dobbertin, Antoon Bosselaers, and Bart Preneel
+ */
+
+(function(global, define) {
   
-  function rotl( x, n ) {
-    return ( x >>> ( 32 - n ) ) | ( x << n );
-  }
+  // define module
+  define(function (require, exports, module) {
+      return ripemd128;
+  });
+
+  // implementation
   
+  // convert array of number to Uint32Array
   function asUint32Array(arr) {
     return new Uint32Array(arr);
+  }
+  
+  // concat 2 typed array
+  function concat(a, b) {
+    var c = new a.constructor(a.length + b.length);
+    c.set(a);
+    c.set(b, a.length);
+    return c;
+  }
+  
+  // swap high and low bits of a 32-bit int.
+  function rotl( x, n ) {
+    return ( x >>> ( 32 - n ) ) | ( x << n );
   }
   
   var DIGEST = 128,
@@ -56,13 +85,6 @@
         }
       ];
 
-  function concat(a, b) {
-    var c = new a.constructor(a.length + b.length);
-    c.set(a);
-    c.set(b, a.length);
-    return c;
-  }
-  
   function ripemd128( data ) {
     var aa, bb, cc, dd, aaa, bbb, ccc, ddd, i, l, r, rr, t, tmp, x,
         hash = new Uint32Array([ 0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476 ]),
@@ -113,19 +135,12 @@
       hash[0] = ddd;
     }
     
-    var result = new Uint8Array( hash.buffer );
-    console.log(hex(result));
-    return result;
+    return new Uint8Array( hash.buffer );
   }
   
-  function hex(arr) {
-    var s = '';
-    for (var i = 0; i < arr.length; i++) {
-      s += (arr[i] < 0x10 ? '0' : '') + arr[i].toString(16);
-    }
-    return s;
-  }
-  
-  global.ripemd128 = ripemd128;
-  return ripemd128;
-}(this));
+}( this, // refers to global
+   // Help Node out by setting up define.
+   typeof module === 'object' && typeof define !== 'function'
+      ? function (factory) { module.exports = factory(require, exports, module); } 
+      : define
+));

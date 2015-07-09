@@ -11,11 +11,13 @@ Released under the MIT license: http://jsbin.mit-license.org
 <html>
 <head>
   <meta name="description" content="MDict JS">
+  <!--
   <script src="require.js"></script>
   <script src="jquery-1.11.1.js"></script>
   <script src="lzo1x_decompress_safe.js"></script>
   <script src="minilzo-decompress2.js"></script>
   <script src="murmurhash3.js"></script>
+  -->
   <link rel="stylesheet" type="text/css" href="">
   <meta charset="utf-8">
   <title>MDict JS</title>
@@ -31,6 +33,19 @@ Released under the MIT license: http://jsbin.mit-license.org
       background: #1A4FDD;
       color: white;
     }
+    
+    #dict-title {
+      position: absolute;
+      top: 0;
+      right: 0;
+      max-width: 300px;
+      font-size: 10px;
+      opacity: 0.9;
+    }
+    
+    #dict-title * {
+      font-size: 10px!important;
+    }
   </style>
 
 </head>
@@ -39,9 +54,11 @@ Released under the MIT license: http://jsbin.mit-license.org
   <p>
   <input id="word" type="text" value="among">
   <input id="btnLookup" type="button" value="look up" disabled="false">
-
+  
+  <div id="dict-title">ABC</div>
   <div id="definition">
   </div>
-  <script type="text/javascript" src="mdict.js"></script>
+  <script type="text/javascript" src="conf.js"></script>
+  <script src="require.js" data-main="mdict"></script>
 </body>
 </html>
