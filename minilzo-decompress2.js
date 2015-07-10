@@ -50,6 +50,13 @@
  *  @author mahadevan.gss
  */
 
+(function(global, define) {
+
+  // define module and also export to global
+  define(function (require, exports, module) {
+      return lzo1x;
+  });  
+  
 var lzo1x = (function () {
 
   // Auto expandable read/write buffer of TypedArray
@@ -235,3 +242,10 @@ top_loop_ori: do{
     }
   };
 })();
+
+}( this, // refers to global
+   // Help Node out by setting up define.
+   typeof module === 'object' && typeof define !== 'function'
+     ? function (factory) { module.exports = factory(require, exports, module); } 
+     : define
+));
