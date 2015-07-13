@@ -1,23 +1,43 @@
 
 /*
- * A pure JavaScript implementation of RIPEMD128 using Uint8Array as input/output.
- * By Feng Dihai <fengdh@gmail.com>, 2015/07/09
+ * A pure JavaScript implemented parser for MDict dictionary file (mdx/mdd).
+ * By Feng Dihai <fengdh@gmail.com>, 2015/07/01
  *
- * Based on coiscir/jsdigest (https://github.com/coiscir/jsdigest/blob/master/src/hash/ripemd128.js)
+ * Based on:
+ *  - An Analysis of MDX/MDD File Format by Xiaoqiang Wang (xwang)
+ *    https://bitbucket.org/xwang/mdict-analysis/ 
+ *  - GitHub: zhansliu/writemdict
+ *    https://github.com/zhansliu/writemdict/blob/master/fileformat.md
  * 
- * ripemd128.js is free software released under terms of the MIT License.
+ * This is free software released under terms of the MIT License.
  * You can get a copy on http://opensource.org/licenses/MIT.
  * 
- *
- * RIPEMD-128 (c) 1996 Hans Dobbertin, Antoon Bosselaers, and Bart Preneel
+ * MDict software and its file format is developed by Rayman Zhang(中文名：张文伟),
+ * read more on http://www.mdict.cn/ or http://www.octopus-studio.com/.
  */
 
+/**
+ * Usage:
+ *   mdict-core.js is defined as an AMD/Node module.
+ *   To initialize it, you have to provide/define a module named with "mdict-parseXml",
+ *   which will be used to covert a string to XML dom object when parsing dictionary head.
+ *
+ *   For use inside modern browser, DOMParser is available:
+ *   
+ *     define('mdict-parseXml', function() {
+ *         return function (str) { return (new DOMParser()).parseFromString(str, 'text/xml'); };
+ *     }); 
+ *   
+ *   For node server, there are many xml-to-dom module available.
+ */
 (function (root, factory) {
   "use strict";
 
+  // TODO: remove dependency on jQuery
+  
   if (typeof define === 'function' && define.amd) {
     // AMD. Register as an anonymous module.
-    define(['jquery', 'pako_inflate', 'lzo', 'ripemd128', 'murmurhash3', 'bluebird', 'parseXml'], factory);
+    define(['jquery', 'pako_inflate', 'lzo', 'ripemd128', 'murmurhash3', 'bluebird', 'mdict-parseXml'], factory);
   } else {
     // Browser globals
     factory(jQuery, pako, lzo, ripemd128, MurmurHash3, Promise, parseXml);
@@ -25,21 +45,31 @@
 
 }(this, function($, pako, lzo, ripemd128, MurmurHash3, Promise, parseXml) {
   
+  // A shared UTF-16LE text decorder.
   var UTF_16LE = new TextDecoder('utf-16le');
   
   /**
-   * Return the first argument as result, used to simulate side effect such as forward after reading data.
+   * Return the first argument as result, which is used to simulate consequence.
+   * For example, return readed data and then forward to a new position.
+   * @param any data
+   * @return the first arugment
    */
-  function conseq() { return arguments[0]; }
+  function conseq(/* args... */) { return arguments[0]; }
 
   /**
-   * Calculate a 32-bit hash code for a string.
+   * Function to calculate 32-bit hash code for a string.
+   * @param string
+   * @return 32-bit hash code calculated with MurmurHash3 algorithm with a specific seed value. 
    */
   var hash = (function(seed) {
     return function hash(str) { return MurmurHash3.hashString(str.toLowerCase(), 32, seed); }
   })(0xFE176);
 
-  // decrypt encrypted key index (attrs.Encrypted = "2")
+  /*
+   * Decrypt encrypted data block of keyword index (attrs.Encrypted = "2").
+   * @param
+   * @param
+   */
   function decrypt(buf, key) {
     key = ripemd128(key);
     var byte, keylen = key.length, prev = 0x36, i = 0, len = buf.length;
@@ -53,16 +83,23 @@
     return buf;
   }
   
+  /**
+   * Slice part of a file/blob object, return a promise object which will resolve an ArrayBuffer to feed subsequent process.
+   * The promise object is extened with exec(proc, args...) method which can be used to chain further process.
+   */
   function sliceThen(file, offset, len) {
     var p = new Promise(function(resolve) {
-      var reader = new FileReader;
-      reader.onload = function() {
-        resolve(reader.result);
-      }
+      var reader = new FileReader();
+      reader.onload = function() { resolve(reader.result); }
       console.log('slice: ', offset, ' + ', len);
       reader.readAsArrayBuffer(file.slice(offset, offset + len));
     });
 
+    /**
+     * Call a proc with specified arguments prepending with sliced file/blob data been read.
+     * To chain further process, return a promise object which will resovle [returned_result_from_proc, input_array_buffer].
+     * Use Promise#spread(..) to retrieve corresponding value.
+     */
     p.exec = function(proc /*, args... */) {
       var args = Array.prototype.slice.call(arguments, 1);
       return p.then(function(input) {
@@ -76,50 +113,71 @@
     return p;
   }
   
+  /*
+   * Create a compact key table retrived from mdx/mdd file.
+   * Here key is also called keyword or head word for dictionary entry.
+   * 
+   * Compact key table use two Uint32Array (each of length = 2*N, where N is number of key entries) 
+   * to store key's hash code and corresponding record's offset/size.
+   * The first Uint32Array contains N pairs of (key_hashcode, original_key_index), 
+   * while another contains N pairs of (record_offset, record_size) value.
+   * When key index table been loaded, the first Uint32Array is sorted according to key_hashcode (using Array.prototype.sort).
+   * Given a key, applying its hash code to run binary-search, retrieve original key index first, 
+   * and then you can get offset and size of the corresponding record.
+   */
   function createKeyTable() {
-    var pos = 0, index = 0, 
-        arr, view, F64 = new Float64Array(2), U32 = new Uint32Array(F64.buffer);
-    var data;
+    var pos = 0,    // mark current position
+        arr, view,  // backed Float64Array, view as Uint32Array to store (key_hashcode, original_key_index)
+        data,       // backed Uint32Array to store (record_offset, record_size)
+        F64 = new Float64Array(2), U32 = new Uint32Array(F64.buffer); // shared typed array to convert float64 to 2-uint32 value
     
     return {
+      // Allocate required array buffer for storing key table, where len is number of key entries.
       alloc:  function(len) { 
                 arr = new Float64Array(len); view = new Uint32Array(arr.buffer); 
-                data = new Uint32Array(len << 1);
+                data = new Uint32Array(arr.buffer.byteLength);
               },
-      put:    function(hash, offset) {
-                data[pos - 1] = offset - data[pos - 2];
-                data[pos] = offset;
+      // Store retrived key info, where offset is corresponding record's offset
+      put:    function(key, offset) {
+                data[pos - 1] = offset - data[pos - 2];  // previous record's size, the last one in key table can be ignored just with value of undefined
+                data[pos]     = offset;                  // current record's offset
         
-                view[pos++] = hash; 
-//                view[pos++] = offset;
-                view[pos++] = index++;
+                view[pos++] = hash(key);                 // key's hash code
+                view[pos] = pos++ >> 1;                  // original key index, = half of current position
               },
+      // Pack array buffer if not used up
       pack:   function() {
                 if (pos * 2 < arr.byteLength) {
                   arr = new Float64Array(arr.buffer.slice(0, pos << 3));
                   view = new Uint32Array(arr.buffer);;
-                  data = data.subarray(0, view.length);
+                  data = new Uint32Array(data.buffer.slice(0, view.length * Uint32Array.BYTES_PER_ELEMENT));
                 }
                 return view;
               },
+      // Sort Uint32Array containing (key_hashcode, original_key_index) values, 
+      // treat each pair of value as a Float64 and compared with value of key_hashcode. 
       sort:   function() {
                 this.pack();
                 Array.prototype.sort.call(arr, function(f1, f2) { return F64[0] = f1, F64[1] = f2, U32[0] - U32[2]; });
               },
-      find:   function(hash) {
-                var hi = arr.length - 1, lo = 0, i = (lo + hi) >> 1, val = view[i << 1];
-                if (hash < 0) { 
-                  hash += 0xFFFFFFFF; hash++;
-                }
+      // Given a key, appling its hash code to run binary search in key table.
+      // If matched then return [record_offset, record_size], else return undefined.
+      find:   function(key) {
+                U32[0] = hash(key); // covert negative value to two's complement
+        
+                var hashcode = U32[0],
+                    hi = arr.length - 1, lo = 0, i = (lo + hi) >> 1, val = view[i << 1];
+
                 while (true) {
-                  if (hash === val) {
+                  if (hashcode === val) {
+                    // NOTE: size of the last record is not required so leaving it with value of undefined.
                     var at = view[(i << 1) + 1] << 1;
                     return {offset: data[at], size: at < data.length - 2 ? data[at + 1] : void 0};
                   } else if (hi === lo || i === hi || i === lo) {
                     return;
                   }
 
-                  (hash < val) ? hi = i : lo = i;
+                  (hashcode < val) ? hi = i : lo = i;
                   i = (lo + hi) >> 1;
                   val = view[i << 1];
                 }
@@ -128,6 +186,15 @@
     }
   };
   
+  /*
+   * Create compact record block table which can be viewed as an Uint32Array containing N+1 pairs of (absolute_offset_comp, offset_decomp) value,
+   * where N is number of record blocks. The tail of the table shows offset of the last record block's end.
+   * This table should be sorted first according to offset_decomp before searching.
+   * How to look up for a given keyword:
+   *   1. Find offset (offset_decomp) of record in KEY_TABLE.
+   *   2. Execute binary search on RECORD_BLOCK_TABLE to get record block containing the record.
+   *   3. Load found record block, using offset to retrieve content of the record.
+   */
   function createRecordTable() {
     var pos = 0, arr;
     return {
@@ -170,20 +237,8 @@
   
   function parse_mdict(file, ext) {
 
-    // Note: key = keyword or head word
-    // Compact key table, which can be viewed as an Uint32Array containing N pairs of (key_hashcode, record_offset) value. 
-    // where N is number of key entries.
-    // This table should be sorted first according to key_hashcode before searching offset of a key (using Array.prototype.sort).
-    // To execute binary search in the sorted key table, you have to calculate its hashcode for any given keyword.
     var KEY_TABLE = createKeyTable();
 
-    // Compact record block table which can be viewed as an Uint32Array containing N+1 pairs of (absolute_offset_comp, offset_decomp) value,
-    // where N is number of record blocks. The tail of the table shows offset of the last record block's end.
-    // This table should be sorted first according to offset_decomp before searching.
-    // How to look up for a given keyword:
-    //     1. Find offset (offset_decomp) of record in KEY_TABLE.
-    //     2. Execute binary search on RECORD_BLOCK_TABLE to get record block containing the record.
-    //     3. Load found record block, using offset to retrieve content of the record.
     var RECORD_BLOCK_TABLE = createRecordTable();
 
 
@@ -397,11 +452,10 @@
       scanner = scanner.readBlock(kx.comp_size, kx.decomp_size);
       for (var i = 0, size = kx.num_entries; i < size; i++) {
         offset = scanner.readNum();
-        h = hash(k = scanner.readText());
-        KEY_TABLE.put(h, offset);
-        if (ext === 'mdd') {
-          console.log(k, offset);
-        }
+        KEY_TABLE.put(scanner.readText(), offset);
+//        if (ext === 'mdd') {
+//          console.log(k, offset);
+//        }
       }
     }
 
@@ -457,10 +511,8 @@
     var LOOKUP = {
       mdx: function(word) {
         word = word.trim().toLowerCase();
-        var hashcode = hash(word);
         return new Promise(function(resolve, reject) {
-        console.log(hashcode);
-          var keyinfo = KEY_TABLE.find(hashcode);
+          var keyinfo = KEY_TABLE.find(word);
           if (keyinfo) {
             var block = RECORD_BLOCK_TABLE.find(keyinfo.offset);
             readPartial(block.comp_offset, block.comp_size).exec(read_definition, keyinfo, block)
@@ -479,10 +531,8 @@
       mdd: function(word) {
         word = word.trim().toLowerCase();
         word = '\\' + word.replace(/^[/\\]/, '');
-        var hashcode = hash(word);
-        console.log(hashcode);
         return new Promise(function(resolve, reject) {
-          var keyinfo = KEY_TABLE.find(hashcode);
+          var keyinfo = KEY_TABLE.find(word);
           if (keyinfo) {
             var block = RECORD_BLOCK_TABLE.find(keyinfo.offset);
             readPartial(block.comp_offset, block.comp_size).exec(read_object, keyinfo, block)
