@@ -53,7 +53,7 @@
     return buf;
   }
   
-  function willRead(file, offset, len) {
+  function sliceThen(file, offset, len) {
     var p = new Promise(function(resolve) {
       var reader = new FileReader;
       reader.onload = function() {
@@ -77,18 +77,28 @@
   }
   
   function createKeyTable() {
-    var pos = 0, arr, view, F64 = new Float64Array(2), U32 = new Uint32Array(F64.buffer);
-
+    var pos = 0, index = 0, 
+        arr, view, F64 = new Float64Array(2), U32 = new Uint32Array(F64.buffer);
+    var data;
+    
     return {
       alloc:  function(len) { 
                 arr = new Float64Array(len); view = new Uint32Array(arr.buffer); 
+                data = new Uint32Array(len << 1);
               },
       put:    function(hash, offset) {
-                view[pos++] = hash; view[pos++] = offset;
+                data[pos - 1] = offset - data[pos - 2];
+                data[pos] = offset;
+        
+                view[pos++] = hash; 
+//                view[pos++] = offset;
+                view[pos++] = index++;
               },
       pack:   function() {
                 if (pos * 2 < arr.byteLength) {
-                  view = view.subarray(0, pos); arr = new Float64Array(view.buffer);
+                  arr = new Float64Array(arr.buffer.slice(0, pos << 3));
+                  view = new Uint32Array(arr.buffer);;
+                  data = data.subarray(0, view.length);
                 }
                 return view;
               },
@@ -103,9 +113,10 @@
                 }
                 while (true) {
                   if (hash === val) {
-                    return view[(i << 1) + 1];
+                    var at = view[(i << 1) + 1] << 1;
+                    return {offset: data[at], size: at < data.length - 2 ? data[at + 1] : void 0};
                   } else if (hi === lo || i === hi || i === lo) {
-                    return -1;
+                    return;
                   }
 
                   (hash < val) ? hi = i : lo = i;
@@ -113,7 +124,7 @@
                   val = view[i << 1];
                 }
               },
-      debug:  function() { console.log(this.pack()); }
+      debug:  function() { console.log(this.pack()); console.log(data); }
     }
   };
   
@@ -188,7 +199,7 @@
         _readNum = function(scanner) { return scanner.readInt(); },
         _checksum_v2 = new Function(),
         _readShort = function(scanner) { return scanner.readUint8(); },
-        readPartial = willRead.bind(null, file);
+        readPartial = sliceThen.bind(null, file);
 
     function init(attrs) {
       attrs.Encoding = attrs.Encoding || 'UTF-16';
@@ -304,13 +315,12 @@
         },
         // TODO:
         readRaw: function(len) {
-          return conseq(new Uint8Array(buf), this.forward(len));
+          return conseq(new Uint8Array(buf, offset, len), this.forward(len === void 0 ? buf.byteLength - offset :len));
         },
       };
 
       return Object.create(methods);
     }
-
     
     function read_file_head(input) {
       return new Scanner(input).readInt();
@@ -383,21 +393,16 @@
     }
 
     function read_key_block(scanner, kx) {
-      var offset, key, h;
+      var offset, h, k;
       scanner = scanner.readBlock(kx.comp_size, kx.decomp_size);
-//      if (scanner.size() === kx.decomp_size) {
-        for (var i = 0, size = kx.num_entries; i < size; i++) {
-          offset = scanner.readNum();
-          key = scanner.readText();
-          h = hash(key);
-          KEY_TABLE.put(h, offset);
+      for (var i = 0, size = kx.num_entries; i < size; i++) {
+        offset = scanner.readNum();
+        h = hash(k = scanner.readText());
+        KEY_TABLE.put(h, offset);
+        if (ext === 'mdd') {
+          console.log(k, offset);
         }
-//      } else {
-//        console.log('Failed to decompress LZO data block:')
-//        console.log('  mdx size =   ' + kx.decomp_size);
-//        console.log('  lzo size =   ' + scanner.size());
-//      }
-//      console.log(' * ' + i, key);
+      }
     }
 
     function read_record_sect(input) {
@@ -434,18 +439,18 @@
     }
     
 
-    function read_definition(input, offset, block) {
+    function read_definition(input, keyinfo, block) {
       var scanner = Scanner(input);
       scanner = scanner.readBlock(block.comp_size);
-      scanner.forward(offset - block.decomp_offset);
+      scanner.forward(keyinfo.offset - block.decomp_offset);
       return scanner.readText();
     }
 
-    function read_object(input, offset, block) {
+    function read_object(input, keyinfo, block) {
       var scanner = Scanner(input);
       scanner = scanner.readBlock(block.comp_size);
-      scanner.forward(offset - block.decomp_offset);
-      return scanner.readRaw(block.decomp_size);
+      scanner.forward(keyinfo.offset - block.decomp_offset);
+      return scanner.readRaw(keyinfo.size);
     }
 
     // TODO: search nearest in case of collision of hashcode
@@ -455,10 +460,10 @@
         var hashcode = hash(word);
         return new Promise(function(resolve, reject) {
         console.log(hashcode);
-          var offset = KEY_TABLE.find(hashcode);
-          if (offset >= 0) {
-            var block = RECORD_BLOCK_TABLE.find(offset);
-            readPartial(block.comp_offset, block.comp_size).exec(read_definition, offset, block)
+          var keyinfo = KEY_TABLE.find(hashcode);
+          if (keyinfo) {
+            var block = RECORD_BLOCK_TABLE.find(keyinfo.offset);
+            readPartial(block.comp_offset, block.comp_size).exec(read_definition, keyinfo, block)
               .spread(function (definition) {
                 resolve(definition);
               }).caught(function () {
@@ -477,10 +482,10 @@
         var hashcode = hash(word);
         console.log(hashcode);
         return new Promise(function(resolve, reject) {
-          var offset = KEY_TABLE.find(hashcode);
-          if (offset >= 0) {
-            var block = RECORD_BLOCK_TABLE.find(offset);
-            readPartial(block.comp_offset, block.comp_size).exec(read_object, offset, block)
+          var keyinfo = KEY_TABLE.find(hashcode);
+          if (keyinfo) {
+            var block = RECORD_BLOCK_TABLE.find(keyinfo.offset);
+            readPartial(block.comp_offset, block.comp_size).exec(read_object, keyinfo, block)
               .spread(function (blob) {
                 resolve(blob);
               }).caught(function () {
@@ -503,7 +508,7 @@
         // then parse dictionary attributes in remained header section (len + 4),
         // also load next first 44 bytes of keyword section
         return readPartial(pos, len + 48).exec(read_header_sect, len).spread(function(attrs, input) {
-          console.log('attrs: ', attrs, this);
+          console.log('attrs: ', attrs);
           pos += len + 4;
           return read_keyword_sect(input, len + 4, attrs);
         });
@@ -521,7 +526,7 @@
           scanner.forward(keyword_sect.key_index_comp_len);
 
           for (var i = 0, size = keyword_index.length; i < size; i++) {
-            console.log('== key block # ' + i);
+//            console.log('== key block # ' + i);
             read_key_block(scanner, keyword_index[i]);
           }
 
@@ -587,7 +592,7 @@
                 });
               }
               resolve($content);
-              });
+            });
           });
         });
         
