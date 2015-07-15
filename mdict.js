@@ -1,4 +1,4 @@
-define('parseXml', function() {
+define('mdict-parseXml', function() {
   return function (str) {
         return (new DOMParser()).parseFromString(str, 'text/xml');
     }
@@ -33,6 +33,14 @@ require(['jquery', 'mdict-core', 'mdict-render'], function($, MDict, MRenderer) 
     } else {
       $('#btnLookup').attr('disabled', false);
     }
+    
+    $('#definition').on('click', 'a', function(e) {
+      var href = $(e.target).attr('href');
+      if (href.substring(0, 8) === 'entry://') {
+        $('#word').val(href.substring(8));
+        $('#btnLookup').click();
+      }
+    });
 
   }
 

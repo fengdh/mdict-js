@@ -12,7 +12,7 @@
  * This is free software released under terms of the MIT License.
  * You can get a copy on http://opensource.org/licenses/MIT.
  * 
- * MDict software and its file format is developed by Rayman Zhang(中文名：张文伟),
+ * MDict software and its file format is developed by Rayman Zhang(张文伟),
  * read more on http://www.mdict.cn/ or http://www.octopus-studio.com/.
  */
 
@@ -45,13 +45,16 @@
 
 }(this, function($, pako, lzo, ripemd128, MurmurHash3, Promise, parseXml) {
   
+  // Seed value used with MurmurHash3 function.
+  var _HASH_SEED = 0xFE176;
+  
   // A shared UTF-16LE text decorder.
   var UTF_16LE = new TextDecoder('utf-16le');
   
   /**
-   * Return the first argument as result, which is used to simulate consequence.
-   * For example, return readed data and then forward to a new position.
-   * @param any data
+   * Return the first argument as result.
+   * This function is used to simulate consequence, i.e. return readed data and then forward to a new position.
+   * @param any data or function call
    * @return the first arugment
    */
   function conseq(/* args... */) { return arguments[0]; }
@@ -63,10 +66,11 @@
    */
   var hash = (function(seed) {
     return function hash(str) { return MurmurHash3.hashString(str.toLowerCase(), 32, seed); }
-  })(0xFE176);
+  })(_HASH_SEED);
 
   /*
    * Decrypt encrypted data block of keyword index (attrs.Encrypted = "2").
+   * @see https://github.com/zhansliu/writemdict/blob/master/fileformat.md#keyword-index-encryption
    * @param
    * @param
    */
@@ -85,27 +89,30 @@
   
   /**
    * Slice part of a file/blob object, return a promise object which will resolve an ArrayBuffer to feed subsequent process.
-   * The promise object is extened with exec(proc, args...) method which can be used to chain further process.
+   * The returned promise object is extened with exec(proc, args...) method which can be chained with further process.
+   * @param file file or blob object
+   * @param offset start position to slice
+   * @param len length to slice
    */
   function sliceThen(file, offset, len) {
     var p = new Promise(function(resolve) {
       var reader = new FileReader();
       reader.onload = function() { resolve(reader.result); }
       console.log('slice: ', offset, ' + ', len);
-      reader.readAsArrayBuffer(file.slice(offset, offset + len));
+      reader.readAsArrayBuffer(file.slice(offset, offset + len)); // It's an asynchronous call!
     });
 
     /**
-     * Call a proc with specified arguments prepending with sliced file/blob data been read.
-     * To chain further process, return a promise object which will resovle [returned_result_from_proc, input_array_buffer].
+     * Call proc with specified arguments prepending with sliced file/blob data (ArrayBuffer) been read.
+     * To chain further process, return a promise object which will resovle [returned_result_from_proc, sliced_data].
      * Use Promise#spread(..) to retrieve corresponding value.
      */
     p.exec = function(proc /*, args... */) {
       var args = Array.prototype.slice.call(arguments, 1);
-      return p.then(function(input) {
+      return p.then(function(data) {
         return new Promise(function(resolve) {
-          args.unshift(input);
-          resolve([proc.apply(null, args), input]);
+          args.unshift(data);
+          resolve([proc.apply(null, args), data]);
         });
       });
     };
@@ -117,44 +124,44 @@
    * Create a compact key table retrived from mdx/mdd file.
    * Here key is also called keyword or head word for dictionary entry.
    * 
-   * Compact key table use two Uint32Array (each of length = 2*N, where N is number of key entries) 
-   * to store key's hash code and corresponding record's offset/size.
-   * The first Uint32Array contains N pairs of (key_hashcode, original_key_index), 
-   * while another contains N pairs of (record_offset, record_size) value.
-   * When key index table been loaded, the first Uint32Array is sorted according to key_hashcode (using Array.prototype.sort).
-   * Given a key, applying its hash code to run binary-search, retrieve original key index first, 
-   * and then you can get offset and size of the corresponding record.
+   * Compact key table use Uint32Array to store key's hash code and corresponding record's offset.
+   * For a key table contains N entries, using an Uint32Array storing N pairs of (key_hashcode, original_key_order) value, 
+   * while another Uint32Array storing corresponding N record's offset value in alphabetic order.
+   *
+   * After reading key table from mdx/mdd file, the first Uint32Array need to be sorted by key_hashcode value(using Array.prototype.sort).
+   * Given a key, applying its hash code to run binary-search for its original key order on the first Uint32Array, 
+   * then retrieve the corresponding record's offset and size from the second Uint32Array.
    */
   function createKeyTable() {
     var pos = 0,    // mark current position
+        order = 0,  // key order
         arr, view,  // backed Float64Array, view as Uint32Array to store (key_hashcode, original_key_index)
-        data,       // backed Uint32Array to store (record_offset, record_size)
+        data,       // backed Uint32Array to store record's offset in alphabetic order
         F64 = new Float64Array(2), U32 = new Uint32Array(F64.buffer); // shared typed array to convert float64 to 2-uint32 value
     
     return {
       // Allocate required array buffer for storing key table, where len is number of key entries.
       alloc:  function(len) { 
-                arr = new Float64Array(len); view = new Uint32Array(arr.buffer); 
-                data = new Uint32Array(arr.buffer.byteLength);
+                arr = new Float64Array(len);
+                view = new Uint32Array(arr.buffer); 
+                data = new Uint32Array(len);
               },
       // Store retrived key info, where offset is corresponding record's offset
-      put:    function(key, offset) {
-                data[pos - 1] = offset - data[pos - 2];  // previous record's size, the last one in key table can be ignored just with value of undefined
-                data[pos]     = offset;                  // current record's offset
-        
-                view[pos++] = hash(key);                 // key's hash code
-                view[pos] = pos++ >> 1;                  // original key index, = half of current position
+      put:    function(offset, key) {
+                data[order] = offset;             // offset of corresponding record
+                view[pos++] = hash(key);          // hash code of key
+                view[pos++] = order++;            // original key order
               },
       // Pack array buffer if not used up
       pack:   function() {
-                if (pos * 2 < arr.byteLength) {
-                  arr = new Float64Array(arr.buffer.slice(0, pos << 3));
+                if (order < data.length) {
+                  arr = new Float64Array(arr.buffer.slice(0, pos << 2));
                   view = new Uint32Array(arr.buffer);;
-                  data = new Uint32Array(data.buffer.slice(0, view.length * Uint32Array.BYTES_PER_ELEMENT));
+                  data = new Uint32Array(data.buffer.slice(0, order * Uint32Array.BYTES_PER_ELEMENT));
                 }
                 return view;
               },
-      // Sort Uint32Array containing (key_hashcode, original_key_index) values, 
+      // Sort Uint32Array storing (key_hashcode, original_key_order) values, 
       // treat each pair of value as a Float64 and compared with value of key_hashcode. 
       sort:   function() {
                 this.pack();
@@ -163,16 +170,15 @@
       // Given a key, appling its hash code to run binary search in key table.
       // If matched then return [record_offset, record_size], else return undefined.
       find:   function(key) {
-                U32[0] = hash(key); // covert negative value to two's complement
+                U32[0] = hash(key); // covert negative value to two's complement if necessary
         
-                var hashcode = U32[0],
-                    hi = arr.length - 1, lo = 0, i = (lo + hi) >> 1, val = view[i << 1];
+                var hashcode = U32[0], hi = arr.length - 1, lo = 0, i = (lo + hi) >> 1, val = view[i << 1];
 
                 while (true) {
                   if (hashcode === val) {
                     // NOTE: size of the last record is not required so leaving it with value of undefined.
-                    var at = view[(i << 1) + 1] << 1;
-                    return {offset: data[at], size: at < data.length - 2 ? data[at + 1] : void 0};
+                    var at = view[(i << 1) + 1];
+                    return {offset: data[at], size: at < data.length - 2 ? data[at + 1] - data[at] : void 0};
                   } else if (hi === lo || i === hi || i === lo) {
                     return;
                   }
@@ -187,23 +193,27 @@
   };
   
   /*
-   * Create compact record block table which can be viewed as an Uint32Array containing N+1 pairs of (absolute_offset_comp, offset_decomp) value,
+   * Create compact record block table which can be viewed as an Uint32Array containing N+1 pairs of (offset_comp, offset_decomp) value,
    * where N is number of record blocks. The tail of the table shows offset of the last record block's end.
-   * This table should be sorted first according to offset_decomp before searching.
-   * How to look up for a given keyword:
-   *   1. Find offset (offset_decomp) of record in KEY_TABLE.
+   * How to look up for a given key:
+   *   1. Find offset (offset_decomp) of record in key table.
    *   2. Execute binary search on RECORD_BLOCK_TABLE to get record block containing the record.
    *   3. Load found record block, using offset to retrieve content of the record.
    */
-  function createRecordTable() {
-    var pos = 0, arr;
+  function createRecordBlockTable() {
+    var pos = 0, // current position
+        arr;     // backed Uint32Array
     return {
+      // Allocate required array buffer for storing record block table, where len is number of record blocks.
       alloc:  function(len) { 
                 arr = new Uint32Array(len * 2);
               },
+      // Store offset(compressed & decompressed) of a record block
+      // NOTE: offset_comp is absolute offset counted from start of mdx/mdd file.
       put:    function(offset_comp, offset_decomp) { 
                 arr[pos++] = offset_comp; arr[pos++] = offset_decomp;
               },
+      // Given offset of a key after decompressed, return record block containing the position, else undefined if out of range.
       find:   function(keyAt) {
                 var hi = (arr.length >> 1) - 1, lo = 0, i = (lo + hi) >> 1, val = arr[(i << 1) + 1];
 
@@ -235,14 +245,11 @@
     };
   }
   
+  
   function parse_mdict(file, ext) {
 
-    var KEY_TABLE = createKeyTable();
-
-    var RECORD_BLOCK_TABLE = createRecordTable();
-
-
-    var START_KEY_BLOCK, START_RECORD_BLOCK;
+    var KEY_TABLE = createKeyTable(),                    // key table
+        RECORD_BLOCK_TABLE = createRecordBlockTable();   // record block table
 
     var attrs = {},
         _v2,
@@ -256,7 +263,7 @@
         _readShort = function(scanner) { return scanner.readUint8(); },
         readPartial = sliceThen.bind(null, file);
 
-    function init(attrs) {
+    function config(attrs) {
       attrs.Encoding = attrs.Encoding || 'UTF-16';
       
       _searchTextLen = (attrs.Encoding === 'UTF-16') ? function(dv, offset) {
@@ -377,13 +384,26 @@
       return Object.create(methods);
     }
     
+    /**
+     * Read the first 4 bytes of mdx/mdd file to get length of header_str.
+     * @see https://github.com/zhansliu/writemdict/blob/master/fileformat.md#file-structure
+     * @param input sliced file (start = 0, length = 4)
+     * @return length of header_str
+     */
     function read_file_head(input) {
-      return new Scanner(input).readInt();
+      return Scanner(input).readInt();
     }
 
+    /**
+     * Read header section, parse dictionary attributes and config scanner according to engine version attribute.
+     * @see https://github.com/zhansliu/writemdict/blob/master/fileformat.md#header-section
+     * @param input sliced file (start = 4, length = len + 48], header string + header section (max length 48)
+     * @param len lenghth of header_str
+     * @return length of header_str, same as input argument len
+     */
     function read_header_sect(input, len) {
-      var scanner = new Scanner(input),
-          header_str = scanner.readUTF16(len).replace(/\0$/, ''); // need to remove endding NUL
+      var scanner = Scanner(input),
+          header_str = scanner.readUTF16(len).replace(/\0$/, ''); // need to remove tailing NUL
 
       // parse dictionary attributes
       var xml = parseXml(header_str).querySelector('Dictionary, Library_Data').attributes;
@@ -399,100 +419,120 @@
 
       mdict_obj.description = attrs.Description;
       
-      init(attrs);
-      return attrs;
+      console.log('attrs: ', attrs);
+      config(attrs);
+      return len;
     }
 
-    function read_keyword_sect(input, start, attrs) {
+    /**
+     * Read keyword section.
+     * @see https://github.com/zhansliu/writemdict/blob/master/fileformat.md#keyword-section
+     * @param input sliced file (start = 4, length = len + 48], header string + checksum + keyword section (max length 44)
+     * @param offset start position of keyword section in sliced file
+     * @return keyword_sect object
+     */
+    function read_keyword_sect(input, offset) {
       var scanner = Scanner(input);
-      scanner.forward(start);
+      scanner.forward(offset);
       return {
         num_blocks:           scanner.readNum(),
         num_entries:          scanner.readNum(),
-        key_index_decomp_len: _v2 && scanner.readNum(),
+        key_index_decomp_len: _v2 && scanner.readNum(),  // Ver >= 2.0 only
         key_index_comp_len:   scanner.readNum(),
         key_blocks_len:       scanner.readNum(),
         chksum:               scanner.checksum_v2(),
-        len:                  scanner.offset() - start,
+        len:                  scanner.offset() - offset,  // actual length of keyword section, varying with engine version attribute
       };
     }
 
-    function read_keyword(input, keyword_sect) {
+    /**
+     * Read keyword index. 
+     * @see https://github.com/zhansliu/writemdict/blob/master/fileformat.md#keyword-header-encryption
+     * @see https://github.com/zhansliu/writemdict/blob/master/fileformat.md#keyword-index
+     * @return keyword index array
+     */
+    function read_keyword_index(input, keyword_sect) {
       var scanner = Scanner(input).readBlock(keyword_sect.key_index_comp_len, keyword_sect.key_index_decomp_len, _encrypted[1]),
           keyword_index = Array(keyword_sect.num_blocks);
       
-      for (var i = 0, pos = START_KEY_BLOCK, kx; i < keyword_sect.num_blocks; i++) {
-        kx = read_keyword_index(scanner);
-        kx.offset = pos;
-        pos += kx.comp_size;
-        keyword_index[i] = kx;
+      for (var i = 0, size; i < keyword_sect.num_blocks; i++) {
+        keyword_index[i] = {
+          num_entries: scanner.readNum(),
+          first_size:  size = scanner.readShort(),
+          first_word:  scanner.readText(size, _tail),
+          last_size:   size = scanner.readShort(),
+          last_word:   scanner.readText(size, _tail),
+          comp_size:   scanner.readNum(),
+          decomp_size: scanner.readNum(),
+        };
       }
-      START_RECORD_BLOCK = pos;
-
-      console.log(keyword_index);
-
       return keyword_index;
     }
 
-    function read_keyword_index(scanner) {
-      var size;
-      return {
-        num_entries: scanner.readNum(),
-        first_size:  size = scanner.readShort(),
-        first_word:  scanner.readText(size, _tail),
-        last_size:   size = scanner.readShort(),
-        last_word:   scanner.readText(size, _tail),
-        comp_size:   scanner.readNum(),
-        decomp_size: scanner.readNum(),
-      };
-    }
-
-    function read_key_block(scanner, kx) {
-      var offset, h, k;
-      scanner = scanner.readBlock(kx.comp_size, kx.decomp_size);
-      for (var i = 0, size = kx.num_entries; i < size; i++) {
-        offset = scanner.readNum();
-        KEY_TABLE.put(scanner.readText(), offset);
-//        if (ext === 'mdd') {
-//          console.log(k, offset);
-//        }
+    /**
+     * Read keyword entries inside a keyword block and fill KEY_TABLE.
+     * @param scanner scanner object to read key entries, which starts at begining of target keyword block
+     * @param kblok keyword block object
+     */
+    function read_key_block(scanner, kbloc) {
+      var scanner = scanner.readBlock(kbloc.comp_size, kbloc.decomp_size);
+      for (var i = 0; i < kbloc.num_entries; i++) {
+        KEY_TABLE.put(scanner.readNum(), scanner.readText());
       }
     }
 
-    function read_record_sect(input) {
-      var scanner = Scanner(input);
-      var record_sect = {
-        num_blocks:   scanner.readNum(),
-        num_entries:  scanner.readNum(),
-        index_len:    scanner.readNum(),
-        blocks_len:   scanner.readNum(),
-        len:          scanner.offset(),
-      };
+    /**
+     * Read record section excluding following record block index.
+     * @see https://github.com/zhansliu/writemdict/blob/master/fileformat.md#record-section
+     * @param input sliced file, start = begining of record section, length = 32
+     * @param pos begining of record section
+     */
+    function read_record_sect(input, pos) {
+      var scanner = Scanner(input),
+          record_sect = {
+            num_blocks:   scanner.readNum(),
+            num_entries:  scanner.readNum(),
+            index_len:    scanner.readNum(),
+            blocks_len:   scanner.readNum(),
+            len:          scanner.offset(),   // actual length of record section (excluding record block index), varying with engine version attribute
+          };
+      
+      // start position of record block from head of mdx/mdd file
+      record_sect.block_pos = pos + record_sect.index_len + record_sect.len;
+
       return record_sect;
     }
 
-    var p0, p1;
+    /**
+     * Read record block index in record section, and fill RECORD_BLOCK_TABLE
+     * @see https://github.com/zhansliu/writemdict/blob/master/fileformat.md#record-section
+     * @param input sliced file, start = begining of record block index, length = record_sect.index_len
+     * @param record_sect record section object
+     */
     function read_record_index(input, record_sect) {
       var scanner = Scanner(input),
           size = record_sect.num_blocks,
-          record_index = Array(size);
+          record_index = Array(size),
+          p0 = record_sect.block_pos, 
+          p1 = 0;
 
       RECORD_BLOCK_TABLE.alloc(size + 1);
-      p0 = START_RECORD_BLOCK; p1 = 0;
-      for (var i = 0, rx; i < size; i++) {
-        record_index[i] = rx = {
+      for (var i = 0, rbloc; i < size; i++) {
+        record_index[i] = rbloc = {
           comp_size:   scanner.readNum(),
           decomp_size: scanner.readNum()
         };
         RECORD_BLOCK_TABLE.put(p0, p1);
-        p0 += rx.comp_size;
-        p1 += rx.decomp_size;
+        p0 += rbloc.comp_size;
+        p1 += rbloc.decomp_size;
       }
       RECORD_BLOCK_TABLE.put(p0, p1);
-      record_sect.record_index = record_index;
+//      record_sect.record_index = record_index;
     }
     
-
+    /**
+     *
+     */
     function read_definition(input, keyinfo, block) {
       var scanner = Scanner(input);
       scanner = scanner.readBlock(block.comp_size);
@@ -500,6 +540,9 @@
       return scanner.readText();
     }
 
+    /**
+     *
+     */
     function read_object(input, keyinfo, block) {
       var scanner = Scanner(input);
       scanner = scanner.readBlock(block.comp_size);
@@ -555,59 +598,65 @@
       // read first 4 bytes to get header length
       readPartial(pos, 4).exec(read_file_head).spread(function(len) {
         pos += 4;
-        // then parse dictionary attributes in remained header section (len + 4),
+        // then parse dictionary attributes in remained header section (header_str:len + checksum:4 bytes),
         // also load next first 44 bytes of keyword section
-        return readPartial(pos, len + 48).exec(read_header_sect, len).spread(function(attrs, input) {
-          console.log('attrs: ', attrs);
-          pos += len + 4;
-          return read_keyword_sect(input, len + 4, attrs);
-        });
-      }).then(function(keyword_sect) {
-        console.log('keyword_sect: ', keyword_sect);
-
-        START_KEY_BLOCK = pos + keyword_sect.key_index_comp_len;
-        KEY_TABLE.alloc(keyword_sect.num_entries);
-
-        pos += keyword_sect.len;
+        return readPartial(pos, len + 48).exec(read_header_sect, len);
         
-        var len = keyword_sect.key_index_comp_len + keyword_sect.key_blocks_len;
-        return readPartial(pos, len).exec(read_keyword, keyword_sect).spread(function (keyword_index, input) {
+      }).spread(function(len, input) {
+          pos += len + 4;  // start of keyword section
+          return read_keyword_sect(input, len + 4);
+        
+      }).then(function(keyword_sect) {
+//        console.log('keyword_sect: ', keyword_sect);
+
+        pos += keyword_sect.len;  // start of key index
+        var len = keyword_sect.key_index_comp_len + keyword_sect.key_blocks_len; // total length of key index and key block
+        
+        // read keyword index, and then read all key block
+        return readPartial(pos, len).exec(read_keyword_index, keyword_sect).spread(function (keyword_index, input) {
+//          console.log(keyword_index);
+
           var scanner = Scanner(input);
           scanner.forward(keyword_sect.key_index_comp_len);
 
+          KEY_TABLE.alloc(keyword_sect.num_entries);
           for (var i = 0, size = keyword_index.length; i < size; i++) {
 //            console.log('== key block # ' + i);
             read_key_block(scanner, keyword_index[i]);
           }
 
-          KEY_TABLE.debug();
+//          KEY_TABLE.debug();
           KEY_TABLE.sort();
-          KEY_TABLE.debug();
+//          KEY_TABLE.debug();
 
           return len;
         });
+        
       }).then(function(len) {
-        pos += len;
-        len = 32;
-        return readPartial(pos, len).exec(read_record_sect).spread(function (record_sect) {
+        pos += len;   // start of record section
+        len = 32;     // max length of record section excluding record block index
+        
+        // read head of record section
+        return readPartial(pos, len).exec(read_record_sect, pos).spread(function (record_sect) {
           pos += record_sect.len;
-          START_RECORD_BLOCK = pos + record_sect.index_len;
-          return record_sect;
+          // read record block index, then finish parsing mdx/mdd file 
+          return readPartial(pos, record_sect.index_len).exec(read_record_index, record_sect).spread(function () {
+              console.log('record_sect: ', record_sect);
+//              console.log('RECORD BLOCK TABLE: ');
+//              RECORD_BLOCK_TABLE.debug();
+              resolve();
+            });
         });
-      }).then(function (record_sect) {
-        readPartial(pos, record_sect.index_len).exec(read_record_index, record_sect).spread(function () {
-            console.log('record_sect: ', record_sect);
-            console.log('RECORD BLOCK TABLE: ');
-            RECORD_BLOCK_TABLE.debug();
-            resolve();
-          });
-      });      
+      });
+      
+    // resolve and return lookup() function according to file extension (mdx/mdd)
     }).thenReturn(LOOKUP[ext]);
   };
   
   
   // END OF parse_mdict()
   
+  // TODO: how to parss dictionary description
   var mdict_obj = {};
   
   return function load(files) {
