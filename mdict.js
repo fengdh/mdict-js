@@ -4,27 +4,27 @@ define('mdict-parseXml', function() {
     }
 });
 
-require(['jquery', 'mdict-core', 'mdict-render'], function($, MDict, MRenderer) {
+require(['jquery', 'mdict-parser', 'mdict-renderer'], function($, MParser, MRenderer) {
   
   var $input = $('#dictfile').on('change', accept);
 
   function accept(e) {
-    var $src = $(e.target);
-    var fileList = $src.prop('files');
+    var fileList = $(e.target).prop('files');
 
     $('#btnLookup').attr('disabled', true);
 
     if (fileList.length > 0) {
         $('#word').on('keyup', function(e) { e.which === 13 && $('#btnLookup').click(); });
 
-        MDict(fileList).done(function(mdict) {
-          $('#dict-title').html(mdict.description);
+        MParser(fileList).then(function(resources) {
+          var mdict = MRenderer(resources);
+          $('#dict-title').html(resources.description['mdx'] || '');
 
           $('#btnLookup')
             .attr('disabled', false)
             .off('.#mdict')
             .on('click.#mdict', function() {
-              var result = mdict.lookup($('#word').val()).done(function($content) {
+              var result = mdict.lookup($('#word').val()).then(function($content) {
                 $('#definition').empty().append($content.contents());
               });
               $('#definition').html(result);
@@ -34,6 +34,7 @@ require(['jquery', 'mdict-core', 'mdict-render'], function($, MDict, MRenderer) 
       $('#btnLookup').attr('disabled', false);
     }
     
+    // jump to word with link started with "entry://"
     $('#definition').on('click', 'a', function(e) {
       var href = $(e.target).attr('href');
       if (href.substring(0, 8) === 'entry://') {
