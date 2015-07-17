@@ -68,7 +68,15 @@
           });
         });
       },
-    }
+      
+      adjoin: function (word) {
+        return new Promise(function(resolve) {
+          resources['mdx'].then(function(lookup) {
+            resolve(lookup.adjoin(word));
+          });
+        });
+      }
+    };
   }
 
 }));

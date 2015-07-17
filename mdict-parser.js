@@ -1,4 +1,3 @@
-
 /*
  * A pure JavaScript implemented parser for MDict dictionary file (mdx/mdd).
  * By Feng Dihai <fengdh@gmail.com>, 2015/07/01
@@ -260,18 +259,20 @@
    * Parse MDict dictionary/resource file (mdx/mdd).
    * @param file File object
    * @param ext file extension, mdx/mdd
-   * @return 
+   * @return a Promise object which will resolve to a lookup function.
    */
   function parse_mdict(file, ext) {
 
     var KEY_TABLE = createKeyTable(),                    // key table
+        KEY_INDEX,
+        raw_key_block,
         RECORD_BLOCK_TABLE = createRecordBlockTable();   // record block table
 
     var attrs = {},
         _v2,            // true if enginge version > 2
         _bpu,           // bytes per unit when converting size to byte length for text data
         _tail,          // need to skip extra tail bytes after decoding text
-        _decryptors = [false, false],
+        _decryptors  = [false, false],
                         // [keyword_header_decryptor, keyword_index_decryptor], only keyword_index_decryptor is supported
         _decoder,       // decorder for text data
         _searchTextLen, // search NUL to get text length
@@ -337,7 +338,7 @@
         offset: function() {
           return offset;
         },
-
+        
         // MDict file format uses big endian to store number
         
         // 32-bit unsigned int
@@ -438,7 +439,7 @@
      * @see https://github.com/zhansliu/writemdict/blob/master/fileformat.md#header-section
      * @param input sliced file (start = 4, length = len + 48], header string + header section (max length 48)
      * @param len lenghth of header_str
-     * @return length of header_str, same as input argument len
+     * @return remained length of header section (header_str + checksum), equals to len + 4
      */
     function read_header_sect(input, len) {
       var scanner = Scanner(input),
@@ -455,12 +456,10 @@
       attrs.Encrypted = parseInt(attrs.Encrypted, 10) || 0;
       attrs.Compact = attrs.Compact === 'Yes';
       attrs.KeyCaseSensitive = attrs.KeyCaseSensitive === 'Yes';
-      
-      description[ext] = attrs.Description;
 
       console.log('attrs: ', attrs);
       config();
-      return len;
+      return len + 4;
     }
 
     /**
@@ -492,18 +491,23 @@
      */
     function read_keyword_index(input, keyword_sect) {
       var scanner = Scanner(input).readBlock(keyword_sect.key_index_comp_len, keyword_sect.key_index_decomp_len, _decryptors[1]),
-          keyword_index = Array(keyword_sect.num_blocks);
+          keyword_index = Array(keyword_sect.num_blocks),
+          offset = 0;
       
       for (var i = 0, size; i < keyword_sect.num_blocks; i++) {
         keyword_index[i] = {
-          num_entries: scanner.readNum(),
-          first_size:  size = scanner.readShort(),
-          first_word:  scanner.readText(size),
-          last_size:   size = scanner.readShort(),
-          last_word:   scanner.readText(size),
-          comp_size:   scanner.readNum(),
+          num_entries: conseq(scanner.readNum(), size = scanner.readShort()),
+// UNUSED          
+//          first_size:  size = scanner.readShort(),
+          first_word:  conseq(scanner.readText(size), size = scanner.readShort(), scanner.readText(size)),
+// UNUSED          
+//          last_size:   size = scanner.readShort(),
+//          last_word:   scanner.readText(size),
+          comp_size:   size = scanner.readNum(),
           decomp_size: scanner.readNum(),
+          offset: offset
         };
+        offset += size;
       }
       return keyword_index;
     }
@@ -548,7 +552,7 @@
      * @param input sliced file, start = begining of record block index, length = record_sect.index_len
      * @param record_sect record section object
      */
-    function read_record_index(input, record_sect) {
+    function read_record_block(input, record_sect) {
       var scanner = Scanner(input),
           size = record_sect.num_blocks,
           record_index = Array(size),
@@ -589,7 +593,7 @@
 
     // TODO: search nearest in case of collision of hashcode
     var LOOKUP = {
-      mdx: function(word) {
+      mdx: function(word, adjacent) {
         word = word.trim().toLowerCase();
         return new Promise(function(resolve, reject) {
           var keyinfo = KEY_TABLE.find(word);
@@ -623,6 +627,29 @@
       }
     };
     
+    LOOKUP.mdx.adjoin = function(key) {
+      var kbloc = reduce(KEY_INDEX, key),
+          scanner = new Scanner(raw_key_block),
+          list = Array(kbloc.num_entries);
+      scanner.forward(kbloc.offset);
+      scanner = scanner.readBlock(kbloc.comp_size, kbloc.decomp_size);
+      for (var i = 0; i < kbloc.num_entries; i++) {
+        scanner.readNum();
+        list[i] = scanner.readText();
+      }
+      return list;
+    }
+    
+    function reduce(arr, key) {
+      var len = arr.length, sub;
+      if (len > 1) {
+        len = len >> 1;
+        return reduce(key < arr[len].first_word ? arr.slice(0, len) : arr.slice(len), key);
+      } else {
+        return arr[0];
+      }
+    }
+    
     return new Promise(function(resolve) {
       var pos = 0;
 
@@ -633,62 +660,57 @@
         // also load next first 44 bytes of keyword section
         return _slice(pos, len + 48).exec(read_header_sect, len);
         
-      }).spread(function(len, input) {
-          pos += len + 4;  // start of keyword section
-          return read_keyword_sect(input, len + 4);
+      }).spread(function(header_remain_len, input) {
+          pos += header_remain_len;  // start of keyword section
+          return [read_keyword_sect(input, header_remain_len)];
         
-      }).then(function(keyword_sect) {
-//        console.log('keyword_sect: ', keyword_sect);
-
-        pos += keyword_sect.len;  // start of key index
-        var len = keyword_sect.key_index_comp_len + keyword_sect.key_blocks_len; // total length of key index and key block
+      }).spread(function(keyword_sect) {
+        pos += keyword_sect.len;    // start of key index
+        var len = keyword_sect.key_index_comp_len + keyword_sect.key_blocks_len; 
+                                    // total length of key index and key block
         
-        // read keyword index, and then read all key block
-        return _slice(pos, len).exec(read_keyword_index, keyword_sect).spread(function (keyword_index, input) {
-//          console.log(keyword_index);
+        // parallel reading both keyword & record section 
+        return [
+          // read keyword index, and then read all key blocks
+          _slice(pos, len).exec(read_keyword_index, keyword_sect).spread(function (keyword_index, input) {
+            if (ext === 'mdx') {
+              KEY_INDEX = keyword_index;
+              raw_key_block = input.slice(keyword_sect.key_index_comp_len);
+//              console.log(KEY_INDEX);
+            }
+            
+            var scanner = Scanner(input);
+            scanner.forward(keyword_sect.key_index_comp_len);
 
-          var scanner = Scanner(input);
-          scanner.forward(keyword_sect.key_index_comp_len);
+            KEY_TABLE.alloc(keyword_sect.num_entries);
+            for (var i = 0, size = keyword_index.length; i < size; i++) {
+              read_key_block(scanner, keyword_index[i]);
+            }
 
-          KEY_TABLE.alloc(keyword_sect.num_entries);
-          for (var i = 0, size = keyword_index.length; i < size; i++) {
-//            console.log('== key block # ' + i);
-            read_key_block(scanner, keyword_index[i]);
-          }
-
-//          KEY_TABLE.debug();
-          KEY_TABLE.sort();
-//          KEY_TABLE.debug();
-
-          return len;
-        });
+            KEY_TABLE.sort();
+            KEY_TABLE.debug();
+          }),
+          
+          // read head of record section, and then read all record blocks
+          _slice(pos += len, 32).exec(read_record_sect, pos).spread(function (record_sect) {
+            pos += record_sect.len;         // start of record blocks
+            len  = record_sect.index_len;   // total length of record blocks
+            return _slice(pos, len).exec(read_record_block, record_sect);
+          })      
+        ];
         
-      }).then(function(len) {
-        pos += len;   // start of record section
-        len = 32;     // max length of record section excluding record block index
-        
-        // read head of record section
-        return _slice(pos, len).exec(read_record_sect, pos).spread(function (record_sect) {
-          pos += record_sect.len;
-          // read record block index, then finish parsing mdx/mdd file 
-          return _slice(pos, record_sect.index_len).exec(read_record_index, record_sect).spread(function () {
-              console.log('record_sect: ', record_sect);
-//              console.log('RECORD BLOCK TABLE: ');
-//              RECORD_BLOCK_TABLE.debug();
-              resolve();
-            });
-        });
+      }).spread(function() {
+        console.log('-- parse done --', file.name);
+
+        // resolve and return lookup() function according to file extension (mdx/mdd)
+        LOOKUP[ext].description = attrs.Description;
+        resolve(LOOKUP[ext]);
       });
-      
-    // resolve and return lookup() function according to file extension (mdx/mdd)
-    }).thenReturn(LOOKUP[ext]);
+    });
   };
   
   
   // END OF parse_mdict()
-  
-  // Temporally storing description of resources, file extension as property name
-  var description = {};
   
   /**
    * Get file extension.
@@ -696,8 +718,9 @@
   function getExtension(filename, defaultExt) {
     return /(?:\.([^.]+))?$/.exec(filename)[1] || defaultExt;
   }
+  
   /**
-   * Given 
+   * Load a set of files which will be parsed as MDict dictionary & resource (mdx/mdd).
    */
   return function load(files) {
       var resources = [];
@@ -707,11 +730,7 @@
       });
         
       return new Promise(function(resolve) {
-        Promise.all(resources).then(function() {
-          resources.description = description;
-          resolve(resources);
-          description = {};
-        });
+        Promise.all(resources).then(function() { resolve(resources); });
       });
     };
   

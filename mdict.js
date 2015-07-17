@@ -18,7 +18,12 @@ require(['jquery', 'mdict-parser', 'mdict-renderer'], function($, MParser, MRend
 
         MParser(fileList).then(function(resources) {
           var mdict = MRenderer(resources);
-          $('#dict-title').html(resources.description['mdx'] || '');
+          
+          mdict.adjoin('mind').then(function(list) {
+            console.log(list);
+          });
+          
+          $('#dict-title').html((resources['mdx'] || resources['mdd']).value().description || '** no description **');
 
           $('#btnLookup')
             .attr('disabled', false)
