@@ -19,7 +19,11 @@ require(['jquery', 'mdict-parser', 'mdict-renderer'], function($, MParser, MRend
         MParser(fileList).then(function(resources) {
           var mdict = MRenderer(resources);
           
-          mdict.adjoin('mind').then(function(list) {
+//          mdict.search('mind').then(function(list) {
+//            console.log(list);
+//          });
+
+          mdict.search('mini').then(function(list) {
             console.log(list);
           });
           

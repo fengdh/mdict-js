@@ -24,6 +24,10 @@
  *       and having no intention to break protected ones.
  *       But keyword index encryption is common, so it is supported.
  *
+ *  iii. Link to another record, which is a TODO task.
+ *
+ *   iv. Stylesheet substitution (is it really necessary?).
+ *
  * MDict software and its file format is developed by Rayman Zhang(张文伟),
  * read more on http://www.mdict.cn/ or http://www.octopus-studio.com/.
  */
@@ -141,6 +145,8 @@
    * After reading key table from mdx/mdd file, the first Uint32Array need to be sorted by key_hashcode value(using Array.prototype.sort).
    * Given a key, applying its hash code to run binary-search for its original key order on the first Uint32Array, 
    * then retrieve the corresponding record's offset and size from the second Uint32Array.
+   *
+   * To accept arbitary user entry, key is converted to lower case when computing its hash code.
    */
   function createKeyTable() {
     var pos = 0,    // mark current position
@@ -255,6 +261,13 @@
     };
   }
   
+  function isTrue(v) {
+    v = ((v || false) + '').toLowerCase();
+    return v === 'yes' || v === 'true';
+  }
+  
+  var REGEXP_STRIPKEY = /[. ]/g;
+  
   /**
    * Parse MDict dictionary/resource file (mdx/mdd).
    * @param file File object
@@ -265,7 +278,6 @@
 
     var KEY_TABLE = createKeyTable(),                    // key table
         KEY_INDEX,
-        raw_key_block,
         RECORD_BLOCK_TABLE = createRecordBlockTable();   // record block table
 
     var attrs = {},
@@ -282,7 +294,8 @@
                         // Read a number representing offset or data block size, 16-bit for version < 2, 32-bit for version >= 2
         _checksum_v2 = function() {},
                         // Version >= 2.0 only checksum
-        _slice  = sliceThen.bind(null, file);
+        _slice       = sliceThen.bind(null, file),
+        _adaptKey    = function(key) { return key; };
                         // bind sliceThen() with file argument
     /**
      * Config scanner according to dictionary attributes.
@@ -293,11 +306,11 @@
       _searchTextLen = (attrs.Encoding === 'UTF-16') ? function(dv, offset) {
         var mark = offset;
         while (dv.getUint16(offset++)) {};
-        return [offset - mark, 2];
+        return offset - mark;
       } : function(dv, offset) {
         var mark = offset;
         while (dv.getUint8(offset++)) {}
-        return [offset - mark, 0];
+        return offset - mark - 1;
       };
       
       _decoder = new TextDecoder(attrs.Encoding || 'UTF-16LE');
@@ -317,6 +330,15 @@
       
       if (attrs.Encrypted & 0x02) {
         _decryptors[1] = decrypt; 
+      }
+      if (isTrue(attrs.KeyCaseSensitive)) {
+        _adaptKey = isTrue(attrs.StripKey) 
+                      ? function(key) { return key.replace(REGEXP_STRIPKEY, ''); }
+                      : function(key) { return key; };
+      } else {
+        _adaptKey = isTrue(attrs.StripKey) 
+                      ? function(key) { return key.toLowerCase().replace(REGEXP_STRIPKEY, ''); }
+                      : function(key) { return key.toLowerCase(); };
       }
     }
 
@@ -363,20 +385,19 @@
         readUTF16: function(len) {
           return conseq(UTF_16LE.decode(new Uint8Array(buf, offset, len)), this.forward(len));
         },
-        // Read data to an Uint8Array and decode it to text with specified encoding
-        // @param len if specified, multiply byte per unit to get length in bytes
-        //            if ignored, search NUL to determin length in bytes first.
+        // Read data to an Uint8Array and decode it to text with specified encoding.
+        // Text length in bytes is determined by searching terminated NUL.
+        // NOTE: After decoding the text, forward extra "tail" bytes (= bytes per unit) according to encoding specified in dictionary attributes. 
+        readText: function() {
+          var len = _searchTextLen(dv, offset);
+          return conseq(_decoder.decode(new Uint8Array(buf, offset, len)), this.forward(len + _bpu));
+        },
+        // Read data to an Uint8Array and decode it to text with specified encoding.
+        // @param len length in basic unit, need to multiply byte per unit to get length in bytes
         // NOTE: After decoding, it is required to forward extra "tail" bytes according to encoding specified in dictionary attributes. 
-        readText: function(len) {
-          var tail = _tail;
-          if (arguments.length === 0) {
-            var r = _searchTextLen(dv, offset);
-            len = r[0];
-            tail = r[1];
-          } else {
-            len *= _bpu;
-          }
-          return conseq(_decoder.decode(new Uint8Array(buf, offset, len)), this.forward(len + tail));
+        readTextSized: function(len) {
+          len *= _bpu;
+          return conseq(_decoder.decode(new Uint8Array(buf, offset, len)), this.forward(len + _tail));
         },
         
         // Skip checksum
@@ -454,8 +475,6 @@
       }
 
       attrs.Encrypted = parseInt(attrs.Encrypted, 10) || 0;
-      attrs.Compact = attrs.Compact === 'Yes';
-      attrs.KeyCaseSensitive = attrs.KeyCaseSensitive === 'Yes';
 
       console.log('attrs: ', attrs);
       config();
@@ -479,6 +498,7 @@
         key_index_comp_len:   scanner.readNum(),
         key_blocks_len:       scanner.readNum(),
         chksum:               scanner.checksum_v2(),
+        // extra field
         len:                  scanner.offset() - offset,  // actual length of keyword section, varying with engine version attribute
       };
     }
@@ -489,23 +509,25 @@
      * @see https://github.com/zhansliu/writemdict/blob/master/fileformat.md#keyword-index
      * @return keyword index array
      */
-    function read_keyword_index(input, keyword_sect) {
+    function read_keyword_index(input, keyword_sect, offset) {
       var scanner = Scanner(input).readBlock(keyword_sect.key_index_comp_len, keyword_sect.key_index_decomp_len, _decryptors[1]),
-          keyword_index = Array(keyword_sect.num_blocks),
-          offset = 0;
-      
+          keyword_index = Array(keyword_sect.num_blocks);
+//          offset = 0;
+      offset += keyword_sect.key_index_comp_len;
       for (var i = 0, size; i < keyword_sect.num_blocks; i++) {
         keyword_index[i] = {
           num_entries: conseq(scanner.readNum(), size = scanner.readShort()),
 // UNUSED          
 //          first_size:  size = scanner.readShort(),
-          first_word:  conseq(scanner.readText(size), size = scanner.readShort(), scanner.readText(size)),
+          first_word:  conseq(scanner.readTextSized(size), size = scanner.readShort(), scanner.readTextSized(size)),
 // UNUSED          
 //          last_size:   size = scanner.readShort(),
-//          last_word:   scanner.readText(size),
+//          last_word:   scanner.readTextSized(size),
           comp_size:   size = scanner.readNum(),
           decomp_size: scanner.readNum(),
-          offset: offset
+          // extra fields
+          offset: offset,     // offset of the first byte for the target key block in mdx/mdd file
+          index: i            // index of this key index, used to search previous/next block
         };
         offset += size;
       }
@@ -537,6 +559,7 @@
             num_entries:  scanner.readNum(),
             index_len:    scanner.readNum(),
             blocks_len:   scanner.readNum(),
+            // extra field
             len:          scanner.offset(),   // actual length of record section (excluding record block index), varying with engine version attribute
           };
       
@@ -592,6 +615,7 @@
     }
 
     // TODO: search nearest in case of collision of hashcode
+    // TODO: following jump link
     var LOOKUP = {
       mdx: function(word, adjacent) {
         word = word.trim().toLowerCase();
@@ -627,26 +651,83 @@
       }
     };
     
-    LOOKUP.mdx.adjoin = function(key) {
-      var kbloc = reduce(KEY_INDEX, key),
-          scanner = new Scanner(raw_key_block),
-          list = Array(kbloc.num_entries);
-      scanner.forward(kbloc.offset);
-      scanner = scanner.readBlock(kbloc.comp_size, kbloc.decomp_size);
-      for (var i = 0; i < kbloc.num_entries; i++) {
-        scanner.readNum();
-        list[i] = scanner.readText();
-      }
-      return list;
+    var MAX_CANDIDATES = 64, _last_keys;
+    LOOKUP.mdx.search = function(phrase) {
+        console.log('adjacent keys for ', phrase);
+        phrase = _adaptKey(phrase);
+        var kbloc = reduce(KEY_INDEX, phrase);
+        return loadKeys(kbloc).then(function(list) {
+          var idx = shrink(list, phrase),
+              candidates = list.slice(idx, idx + MAX_CANDIDATES);
+          
+          var shortage = MAX_CANDIDATES - candidates.length;
+          if (shortage > 0 && (kbloc = KEY_INDEX[kbloc.index + 1]) !== void 0) {
+            return loadKeys(kbloc).then(function(nextList) {
+              Array.prototype.push.apply(candidates, nextList.slice(0, shortage));
+              return candidates;
+            });
+          }
+          return candidates;
+        });
     }
     
+    function loadKeys(kbloc) {
+      if (_last_keys && _last_keys.pilot === kbloc.first_word) {
+        return Promise.resolve(_last_keys.list);
+      } else {
+        return _slice(kbloc.offset, kbloc.comp_size).then(function(input) {
+          console.log('load keys...');
+          var scanner = Scanner(input).readBlock(kbloc.comp_size, kbloc.decomp_size),
+              list = Array(kbloc.num_entries);
+          for (var i = 0; i < kbloc.num_entries; i++) {
+            scanner.readNum();
+            list[i] = scanner.readText();
+          }
+          _last_keys = {list: list, pilot: kbloc.first_word};
+          return list;
+        });
+      }
+    }
+    
+    
+    // Reduce the key index array to an element which contains or is nearest one matching a given key.
     function reduce(arr, key) {
+      var len = arr.length;
+      if (len > 1) {
+        len = len >> 1;
+        return reduce(key < _adaptKey(arr[len].first_word) ? arr.slice(0, len) : arr.slice(len), key);
+      } else {
+        return arr[0];
+      }
+    }
+    
+    // Reduce the array to index of an element which contains or is nearest one matching a given key.
+    function shrink(arr, key) {
       var len = arr.length, sub;
       if (len > 1) {
         len = len >> 1;
-        return reduce(key < arr[len].first_word ? arr.slice(0, len) : arr.slice(len), key);
+        var word = _adaptKey(arr[len]);
+        if (key < word) {
+          // Special Case: key ending with "-"
+          // mdict key sort bug? 
+          // i.e. "mini-" prios "mini" in some dictionary
+          if (word[word.length - 1] === '-' && arr[len + 1] === key) {
+            return arr.pos + len + 1;
+          }
+          sub = arr.slice(0, len);
+          sub.pos = arr.pos;
+        } else {
+          // Special Case: key ending with whitespace
+          word = arr[len];
+          if (word[word.length - 1] === ' ' && arr[len - 1] === key) {
+            return arr.pos + len - 1;
+          }
+          sub = arr.slice(len);
+          sub.pos = (arr.pos || 0) + len;
+        }
+        return shrink(sub, key);
       } else {
-        return arr[0];
+        return (arr.pos || 0) + (key === _adaptKey(arr[0]) ? 0 : 1);
       }
     }
     
@@ -665,6 +746,7 @@
           return [read_keyword_sect(input, header_remain_len)];
         
       }).spread(function(keyword_sect) {
+        console.log(keyword_sect);
         pos += keyword_sect.len;    // start of key index
         var len = keyword_sect.key_index_comp_len + keyword_sect.key_blocks_len; 
                                     // total length of key index and key block
@@ -672,11 +754,9 @@
         // parallel reading both keyword & record section 
         return [
           // read keyword index, and then read all key blocks
-          _slice(pos, len).exec(read_keyword_index, keyword_sect).spread(function (keyword_index, input) {
+          _slice(pos, len).exec(read_keyword_index, keyword_sect, pos).spread(function (keyword_index, input) {
             if (ext === 'mdx') {
               KEY_INDEX = keyword_index;
-              raw_key_block = input.slice(keyword_sect.key_index_comp_len);
-//              console.log(KEY_INDEX);
             }
             
             var scanner = Scanner(input);
@@ -688,7 +768,6 @@
             }
 
             KEY_TABLE.sort();
-            KEY_TABLE.debug();
           }),
           
           // read head of record section, and then read all record blocks
@@ -735,3 +814,5 @@
     };
   
 }));
+
+

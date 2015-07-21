@@ -69,11 +69,9 @@
         });
       },
       
-      adjoin: function (word) {
-        return new Promise(function(resolve) {
-          resources['mdx'].then(function(lookup) {
-            resolve(lookup.adjoin(word));
-          });
+      search: function (word) {
+        return resources['mdx'].then(function(lookup) {
+          return lookup.search(word);
         });
       }
     };
