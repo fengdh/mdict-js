@@ -266,7 +266,7 @@
     return v === 'yes' || v === 'true';
   }
   
-  var REGEXP_STRIPKEY = /[. ]/g;
+  var REGEXP_STRIPKEY = /[,. '-]/g;
   
   /**
    * Parse MDict dictionary/resource file (mdx/mdd).
@@ -690,44 +690,44 @@
     }
     
     
-    // Reduce the key index array to an element which contains or is nearest one matching a given key.
-    function reduce(arr, key) {
+    // Reduce the key index array to an element which contains or is nearest one matching a given phrase.
+    function reduce(arr, phrase) {
       var len = arr.length;
       if (len > 1) {
         len = len >> 1;
-        return reduce(key < _adaptKey(arr[len].first_word) ? arr.slice(0, len) : arr.slice(len), key);
+        return reduce(phrase < _adaptKey(arr[len].first_word) ? arr.slice(0, len) : arr.slice(len), phrase);
       } else {
         return arr[0];
       }
     }
     
-    // Reduce the array to index of an element which contains or is nearest one matching a given key.
-    function shrink(arr, key) {
+    // Reduce the array to index of an element which contains or is nearest one matching a given phrase.
+    function shrink(arr, phrase) {
       var len = arr.length, sub;
       if (len > 1) {
         len = len >> 1;
-        var word = _adaptKey(arr[len]);
-        if (key < word) {
+        var key = _adaptKey(arr[len]);
+        if (phrase < key) {
           // Special Case: key ending with "-"
           // mdict key sort bug? 
           // i.e. "mini-" prios "mini" in some dictionary
-          if (word[word.length - 1] === '-' && arr[len + 1] === key) {
+          if (key[key.length - 1] === '-' && arr[len + 1] === phrase) {
             return arr.pos + len + 1;
           }
           sub = arr.slice(0, len);
           sub.pos = arr.pos;
         } else {
           // Special Case: key ending with whitespace
-          word = arr[len];
-          if (word[word.length - 1] === ' ' && arr[len - 1] === key) {
+          key = arr[len];
+          if (key[key.length - 1] === ' ' && arr[len - 1] === phrase) {
             return arr.pos + len - 1;
           }
           sub = arr.slice(len);
           sub.pos = (arr.pos || 0) + len;
         }
-        return shrink(sub, key);
+        return shrink(sub, phrase);
       } else {
-        return (arr.pos || 0) + (key === _adaptKey(arr[0]) ? 0 : 1);
+        return (arr.pos || 0) + (phrase === _adaptKey(arr[0]) ? 0 : 1);
       }
     }
     
