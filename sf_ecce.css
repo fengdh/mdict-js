@@ -1,0 +1,161 @@
+/*音标*/
+.phone{
+	color:red;
+	display:block;
+	margin-left:4
+}
+/*例句*/
+.exam{
+	display: block;
+	margin-left:8px;
+}
+/*上标*/
+.upper{
+	vertical-align:super;
+	font-size: 60%
+}
+/*英语例句*/
+.f{
+                 /*font-family:"Arial Unicode MS";*/
+	color:grey;
+                font-style:italic;
+}
+/*汉语例句*/
+.n{
+                /*font-family:"Arial Unicode MS";*/
+	color:grey;
+	display: block;
+	margin-left:4px;
+                font-size: 90%
+}
+/*换行*/
+.l{
+	display: block;
+}
+/*词性*/
+.pos{
+                /*font-family:"Arial Unicode MS";*/
+	display: block;
+	margin-left:6px;
+	color:red;
+}
+/*词性词组转换*/
+.trs,.phrs{
+                /*font-family:"Arial Unicode MS";*/
+	margin-top:6px;
+}
+/*词组*/
+.phrs{
+                /*font-family:"Arial Unicode MS";*/
+	display: block;
+	margin-left:6px;
+                font-weight:bold;
+}
+.phr{
+                /*font-family:"Courier New";*/
+	color:darkblue;
+                font-weight:bold;
+                font-size: 110%
+}
+.des{
+                /*font-family:"Arial Unicode MS";*/
+	display: block;
+	margin-left:4px;
+	color:black;
+                font-weight:bold;
+                font-size: 65%
+}
+.phrs .tr{
+                /*font-family:"Arial Unicode MS";*/
+	display: block;
+	margin-left:4px;
+	color:black;
+                font-weight:bold;
+                font-size: 65%
+}
+/*号码，点*/
+.entryNum{
+	font-weight:bold;
+	color:darkblue;
+	display:inline;
+	/*display:none;*/
+	font-weight:bold;
+	margin-right:3px
+}
+.entryDot{
+	font-weight:bold;
+	color:darkblue;
+	/*display:inline;*/
+	display:none;
+	font-weight:bold;
+	margin-right:3px
+}
+
+/*
+.tr{
+	display:block;
+}
+*/
+/*同义词 变形 反义词*/
+.tongyici{
+                /*font-family:"Arial Unicode MS";*/
+	margin-left:4px;
+	font-weight:bold;
+	display: block;
+}
+.fanyici{
+                /*font-family:"Arial Unicode MS";*/
+	margin-left:4px;
+	font-weight:bold;
+	display: block;
+}
+.bianxing{
+                /*font-family:"Arial Unicode MS";*/
+	margin-left:4px;
+	font-weight:bold;
+	display: block;
+}
+.anto{
+                /*font-family:"Arial Unicode MS";*/
+	margin-top:4px;
+	margin-left:10px;
+	display: block;
+}
+.wf{
+                /*font-family:"Arial Unicode MS";*/
+	margin-top:4px;
+	margin-left:10px;
+	display: block;
+}
+.syno{
+                /*font-family:"Arial Unicode MS";*/
+	margin-top:4px;
+	margin-left:10px;
+	display: block;
+}
+.anto .i{
+                /*font-family:"Arial Unicode MS";*/
+	font-style:italic;
+	display: block;
+}
+.wf .i{
+                /*font-family:"Arial Unicode MS";*/
+	font-style:italic;
+	display: block;
+}
+.syno .i{
+                /*font-family:"Arial Unicode MS";*/
+	font-style:italic;
+	display: block;
+}
+/*词组链接*/
+.ref_title{
+                /*font-family:"Arial Unicode MS";*/
+	margin-right:4;
+	font-weight:bold;
+	font-style:normal;
+}
+.reference{
+                /*font-family:"Arial Unicode MS";*/
+	font-style:italic;
+}

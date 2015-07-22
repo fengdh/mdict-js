@@ -1,0 +1,503 @@
+@namespace url("http://www.w3.org/1999/xhtml");
+@namespace p url("Edi");
+
+body{
+}
+
+HR
+{
+	display: none;
+}
+
+/*
+br { }
+*/
+.bigimg
+{
+	display: block;
+}
+.LDAE3_ABBR
+{
+	font-weight: bold;
+}
+
+.LDAE3_COLLOINEXA
+{
+	font-style: italic;
+	font-weight: bold;
+}
+
+.LDAE3_COMP
+{
+	font-weight:bold;
+}
+
+.LDAE3_Crossrefto
+{
+	font-variant:small-caps;
+	font-weight:bold;
+	color:blue;
+}
+
+/*
+.LDAE3_CROSSREFTYPE { }
+
+.LDAE3_Def { }
+*/
+
+.LDAE3_DERIV
+{
+	font-weight:bold;
+	color:blue;
+}
+
+.LDAE3_EMPH
+{
+	font-style:italic;
+	color: blue;
+	font-weight: bold;
+}
+
+.LDAE3_Entry
+{
+	display:block;
+	/*margin-left:10px;*/
+	/*margin-right:18px;*/
+	padding-bottom:5px;
+}
+
+.LDAE3_EXAMPLE
+{
+	font-style:italic;
+	display:block;
+}
+.EXAMPLEGROUP
+{
+	display:block;
+}
+.LDAE3_FULLFORM
+{
+	font-weight:bold;
+}
+
+.LDAE3_GLOSS
+{
+	font-style:normal;
+	font-variant:normal;
+	color:black;
+}
+
+.LDAE3_GRAM
+{
+	color:green;
+}
+
+.LDAE3_GramPara
+{
+	display: block;
+}
+
+
+.LDAE3_GRAMPAT {
+	color:blue;
+	font-weight:bold;
+}
+
+
+.LDAE3_HEAD1
+{
+	display:none;
+	font-weight:bold;
+}
+
+.LDAE3_HEAD2
+{
+	font-weight:bold;
+	color:blue;
+	display:block;
+}
+
+/*
+.LDAE3_HEADING { }
+
+.LDAE3_HINTROMAN { }
+*/
+
+.LDAE3_HOMNUM
+{
+	vertical-align: super;
+	font-size:80%;
+	font-weight:bold;
+	color:blue;
+}
+
+.LDAE3_HWD
+{
+	font-size:120%;
+	font-weight:bold;
+/*	font-family:Arial Unicode MS;*/
+	color: blue;
+}
+
+.LDAE3_HYPHENATION
+{
+	font-size:120%;
+	font-weight:bold;
+/*	font-family:Arial Unicode MS;*/
+	color: blue;
+}
+
+.LDAE3_inflectype
+{
+	font-style: italic;
+}
+
+.LDAE3_LEXICALCHUNK
+{
+	font-weight:bold;
+}
+
+.LDAE3_LEXREF
+{
+	font-weight:bold;
+	color:blue;
+}
+
+.LDAE3_LEXUNIT
+{
+	font-weight:bold;
+	color:blue;
+}
+
+.LDAE3_LEXVAR
+{
+/*	font-family:Arial Unicode MS;*/
+	font-weight: bold;
+	color:blue;
+}
+
+.LDAE3_LINKWORD
+{
+	font-style:italic;
+}
+
+.LDAE3_NonDV
+{
+	font-variant:small-caps;
+	color:blue;
+}
+
+.LDAE3_OBJECT
+{
+	font-weight: bold;
+}
+
+.LDAE3_OPP
+{
+	font-variant:small-caps;
+	color:darkblue;
+}
+
+.LDAE3_ORTHVAR
+{
+/*	font-family:Arial Unicode MS;*/
+	font-weight: bold;
+	color:blue;
+}
+
+/*
+.LDAE3_parahead
+{
+	display: block;
+	text-decoration: underline;
+	font-weight: bolder;
+	text-transform: uppercase;
+}
+*/
+
+.LDAE3_Para
+{
+	display:block;
+}
+ 
+.LDAE3_PASTPART
+{
+	font-weight:bold;
+}
+
+.LDAE3_PASTTENSE
+{
+	font-weight:bold;
+}
+
+.LDAE3_PHRVBHWD
+{
+	font-weight: bold;
+	color:blue;
+}
+
+.LDAE3_PhrVbEntry
+{
+	display:block;
+	/*margin-left:10px;*/
+}
+
+.LDAE3_PLURALFORM
+{
+	font-weight:bold;
+}
+
+.LDAE3_POS
+{
+	font-style: italic;
+	color:green;
+}
+
+.LDAE3_PRESPART
+{
+	font-weight:bold;
+}
+
+.LDAE3_PRON
+{
+	font-family: AWLUnicode;
+}
+
+/*
+.LDAE3_proncodes { }
+*/
+
+.LDAE3_PTandPP
+{
+	font-weight:bold;
+}
+
+.LDAE3_REFHOMNUM
+{
+	font-size:64%;
+	vertical-align: super;
+}
+
+
+.LDAE3_REFHWD { }
+
+
+.LDAE3_REGISTERLAB
+{
+	font-style:italic;
+	color:purple;
+	font-weight:normal;
+}
+
+.LDAE3_RELATEDWD
+{
+	font-variant:small-caps;
+	color:darkblue;
+}
+
+.LDAE3_RunOn
+{
+	display:block;
+	/*margin-left:10px;*/
+}
+
+.LDAE3_Sense
+{
+	display:block;
+	/*margin-left:15px;*/
+}
+
+.LDAE3_SIGNPOST
+{
+	font-weight:bold;
+	font-variant:small-caps;
+}
+
+.LDAE3_SPECIALCHAR
+{
+/*	font-family:Arial Unicode MS;*/
+}
+
+.LDAE3_STRONG
+{
+}
+
+.LDAE3_Subsense
+{
+	display:block;
+	/*margin-left:5px;*/
+}
+
+.LDAE3_SUFFIX
+{
+	font-variant:normal;
+}
+
+.LDAE3_SUPERL
+{
+	font-weight:bold;
+}
+
+.LDAE3_SYN
+{
+	font-variant:small-caps;
+	color:darkblue;
+}
+
+.LDAE3_T3PERSSING
+{
+	font-weight:bold;
+}
+
+.LDAE3_TITLE
+{
+	font-weight:bold;
+	display:block;
+}
+
+.LDAE3_UB
+{
+	font-weight:bold;
+}
+
+.LDAE3_UEXA
+{
+	font-style:italic;
+	display:block;
+}
+
+.LDAE3_UI
+{
+	font-style:italic;
+}
+
+.LDAE3_Unclassified
+{
+	font-weight:bold;
+	color:red;
+}
+
+.LDAE3_UR
+{
+	font-style:normal;
+}
+
+.LDAE3_FREQ, .LDAE3_PIC, .LDAE3_field, .LDAE3_COMMENT, .LDAE3_activ, .LDAE3_PICCAL, .LDAE3_USAGENOTE, .LDAE3_ENTRYNO, .LDAE3_zzanywh_2, .LDAE3_NEW, .LDAE3_HWD, .LDAE3_ALPHASORT, .LDAE3_NOTE, .LDAE3_SENSENUM, .LDAE3_USAGE
+{
+	display: none;
+}
+
+/*misc inserted by xslt*/
+
+
+span.exasound { 
+  display: none;
+}
+
+
+span.numsense
+{
+
+	font-weight:bold;
+  -moz-user-select: none;
+}
+
+span.numsubsense
+{
+
+	font-weight:bold;
+  -moz-user-select: none;
+}
+
+/*active box */
+a.xref, a.nondvref, a.caption, a.button
+{
+  text-decoration: none;
+}
+
+span.activebutton
+{
+  display: none;
+  /*margin: 4px 0px 3px 0px;
+  padding: 3px 3px 3px 3px;*/
+}
+
+span.activetitle
+{
+  font-weight:bold;
+  background-color:blue;
+  color:white;
+}
+
+span.gramtitle1
+{
+  font-weight:bold;
+
+  background-color:red;
+  color:white;
+}
+
+span.gramtitle2
+{
+  font-weight:bold;
+
+  background-color:red;
+  color:white;
+}
+
+span.grammarbox
+{
+  display: block;
+  width: intrinsic;
+  /*margin: 3px 0px 3px 15px;
+  padding: 3px 3px 3px 3px;*/
+  border-width: 1pt;
+  border-style: solid;
+  line height: 1em;
+  background-color: rgb(255, 200, 200);
+}
+
+span.activebox
+{
+  display: block;
+  width: intrinsic;
+  /*margin: 3px 0px 3px 0px;
+  padding: 3px 3px 3px 3px;*/
+  border-width: 1pt;
+  border-style: solid;
+  border-color: blue;
+  line height: 1em;
+  background-color: rgb(226, 244, 253);
+}
+/*spoken phrases */
+
+span.activeword{
+	color:red;
+}
+
+span.spokenhead{
+	font-variant:small-caps;
+	font-weight:bold;
+	background-color: black;
+	color:white;
+}
+
+span.spokenphrases
+{
+  display: block;
+  width: intrinsic;
+  /*margin: 3px 0px 3px 0px;
+  padding: 3px 3px 3px 3px;*/
+  border-width: 1pt;
+  border-style: solid;
+  border-color: black;
+  line height: 1em;
+}
+
+.LDAE3_SIGNPOST > span:before {
+  content: " ";
+}
+
+.LDAE3_SIGNPOST > span:after {
+  content: " ";
+}
