@@ -36,8 +36,15 @@
       }
       
       #mdict-online-viewer {
+        font-size: 14px;
+        font-family: "Times New Roman";
         height: 600px;
-        width: 90%;
+        width: 100%;
+      }
+      
+      #mdict-online-viewer #definition {
+        font-size: 12px;
+        height: 500px;
         overflow: auto;
       }
     </style>
@@ -58,9 +65,9 @@
 
 <p>A pure Javascript implementation of MDict Parser (mdx/mdd).</p>
 
-<p>-- NOW UNDER DEVELOPMENT --</p>
+<p style="font-style:italic;font-weight:bold;">-- NOW UNDER DEVELOPMENT --</p>
 
-<p>BUT you can try mdict-js online with your own dictionary files (mdx/mdd) right below.</p>
+<p style="color: #44D;">BUT you can try mdict-js online with your own dictionary files (mdx/mdd) right below.</p>
 
       <div id="mdict-online-viewer">
         Choose a dictionary file (*.mdx + optional *.mdd): <input id="dictfile" type="file" multiple=>
