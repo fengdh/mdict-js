@@ -24,9 +24,9 @@
  *       and having no intention to break protected ones.
  *       But keyword index encryption is common, so it is supported.
  *
- *  iii. Link to another record, which is a TODO task.
+ *  iii. Stylesheet substitution (is it really necessary?).
  *
- *   iv. Stylesheet substitution (is it really necessary?).
+ *   iv. Audio support: a todo-task.
  *
  * MDict software and its file format is developed by Rayman Zhang(张文伟),
  * read more on http://www.mdict.cn/ or http://www.octopus-studio.com/.
@@ -604,6 +604,15 @@
       scanner.forward(keyinfo.offset - block.decomp_offset);
       return scanner.readText();
     }
+    
+    function followLink(definition, lookup) {
+      if (definition.substring(0, 8) === '@@@LINK=') {
+        var word = definition.substring(8);
+        return lookup(word);
+      } else {
+        return definition;
+      }
+    }
 
     /**
      * Given a keyinfo, read its content as raw array buffer.
@@ -625,8 +634,8 @@
             var block = RECORD_BLOCK_TABLE.find(keyinfo.offset);
             _slice(block.comp_offset, block.comp_size)
               .exec(read_definition, keyinfo, block)
-                .spread(function (definition) { resolve(definition); })
-                .caught(function () { reject('*NOT FOUND*'); });
+                .spread(function (definition) { resolve(followLink(definition, LOOKUP.mdx)); })
+                .caught(function (e) { reject('*NOT FOUND*', e); });
           } else {
             reject("*NOT FOUND*");
           }
@@ -635,7 +644,7 @@
       
       mdd: function(word) {
         word = word.trim().toLowerCase();
-        word = '\\' + word.replace(/^[/\\]/, '');
+        word = '\\' + word.replace(/(^[/\\])|([/]$)/, '');
         return new Promise(function(resolve, reject) {
           var keyinfo = KEY_TABLE.find(word);
           if (keyinfo) {
@@ -643,7 +652,7 @@
             _slice(block.comp_offset, block.comp_size)
               .exec(read_object, keyinfo, block)
                 .spread(function (blob) { resolve(blob); })
-                .caught(function () { reject("*NOT FOUND*"); });
+                .caught(function (e) { reject("*NOT FOUND*", e); });
           } else {
             reject("*NOT FOUND*");
           }
@@ -772,6 +781,7 @@
           
           // read head of record section, and then read all record blocks
           _slice(pos += len, 32).exec(read_record_sect, pos).spread(function (record_sect) {
+            console.log(record_sect);
             pos += record_sect.len;         // start of record blocks
             len  = record_sect.index_len;   // total length of record blocks
             return _slice(pos, len).exec(read_record_block, record_sect);

@@ -18,15 +18,17 @@ Released under the MIT license: http://jsbin.mit-license.org
   <script src="minilzo-decompress2.js"></script>
   <script src="murmurhash3.js"></script>
   -->
-  <link rel="stylesheet" type="text/css" href="">
+  <link rel="stylesheet" type="text/css" href="selectize.default.css">
   <meta charset="utf-8">
   <title>MDict JS</title>
   <style>
     #btnLookup {
       border: none;
-      height: 2em;
+      height: 36px;
       font-size: 12pt;
       font-weight: bold;
+      vertical-align: top;
+      border-radius: 3px;
     }
     
     #btnLookup:not([disabled]) {
@@ -45,6 +47,11 @@ Released under the MIT license: http://jsbin.mit-license.org
     
     #dict-title * {
       font-size: 10px!important;
+    }
+    
+    #word + .selectize-control {
+      display: inline-block;
+      min-width: 18em;
     }
   </style>
 
