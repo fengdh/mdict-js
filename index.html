@@ -8,6 +8,40 @@
     <link href='http://fonts.googleapis.com/css?family=Open+Sans:400,700' rel='stylesheet' type='text/css'>
     <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen">
     <link rel="stylesheet" type="text/css" href="stylesheets/github-light.css" media="screen">
+    
+    <style>
+      #btnLookup {
+        border: none;
+        height: 2em;
+        font-size: 12pt;
+        font-weight: bold;
+      }
+
+      #btnLookup:not([disabled]) {
+        background: #1A4FDD;
+        color: white;
+      }
+
+      #dict-title {
+        position: absolute;
+        top: 0;
+        right: 0;
+        max-width: 300px;
+        font-size: 10px;
+        opacity: 0.9;
+      }
+
+      #dict-title * {
+        font-size: 10px!important;
+      }
+      
+      #mdict-online-viewer {
+        height: 600px;
+        width: 90%;
+        overflow: auto;
+      }
+    </style>
+    
   </head>
   <body>
     <section class="page-header">
@@ -26,8 +60,22 @@
 
 <p>-- NOW UNDER DEVELOPMENT --</p>
 
-<p>BUT now you can try mdict-js online with your own dictionary files (mdx/mdd).</p>
+<p>BUT you can try mdict-js online with your own dictionary files (mdx/mdd) right below.</p>
 
+      <div id="mdict-online-viewer">
+        Choose a dictionary file (*.mdx + optional *.mdd): <input id="dictfile" type="file" multiple=>
+        <p>
+        <input id="word" type="text" value="paddle">
+        <input id="btnLookup" type="button" value="look up" disabled="false">
+
+        <div id="dict-title"></div>
+        <div id="definition">
+        </div>
+        <script type="text/javascript" src="conf.js"></script>
+        <script src="require.js" data-main="mdict"></script>
+      </div>
+      
+      
       <footer class="site-footer">
         <span class="site-footer-owner"><a href="https://github.com/fengdh/mdict-js">mdict-js</a> is maintained by <a href="https://github.com/fengdh">fengdh</a>.</span>
 
