@@ -8,14 +8,18 @@ var require = {
     'lzo':            'minilzo-decompress2',
     'murmurhash3':    'murmurhash3',
     'bluebird':       'bluebird.min',
+    'selectize':      'selectize',
     
     'mdict-core':   'mdict-core',
     'mdict-renderer': 'mdict-renderer',
+    
   },
   
   map: {
     '*': {}
   },
 
-  shim: {}
+  shim: {
+    'selectize'	       : {deps: ['jquery']},
+  }
 };

@@ -4,10 +4,16 @@ define('mdict-parseXml', function() {
     }
 });
 
-require(['jquery', 'mdict-parser', 'mdict-renderer'], function($, MParser, MRenderer) {
+require(['jquery', 'mdict-parser', 'mdict-renderer', 'selectize'], function($, MParser, MRenderer, Selectize) {
+  $('#word').selectize({maxItems: 1});
   
   var $input = $('#dictfile').on('change', accept);
+  var REGEXP_STRIPKEY = /[,. '-]/g;
 
+  function adaptKey(key) { 
+    return key.toLowerCase().replace(REGEXP_STRIPKEY, ''); 
+  }
+  
   function accept(e) {
     var fileList = $(e.target).prop('files');
 
@@ -37,6 +43,43 @@ require(['jquery', 'mdict-parser', 'mdict-renderer'], function($, MParser, MRend
                 $('#definition').empty().append($content.contents());
               });
               $('#definition').html(result);
+            }).click();
+          
+            $('#word')[0].selectize.destroy();
+          
+            $('#word').selectize({
+              maxItems: 1,
+              valueField: 'word',
+              labelField: 'word',
+              searchField: 'word',
+              sortField: 'key',
+              options: [],
+              delimiter: '~~',
+              create: function(v, callback) {
+                return ({word: v, key: adaptKey(v)});
+              },
+              createOnBlur: true,
+              persist: true,
+              closeAfterSelect: true,
+              allowEmptyOption: true,
+              addPrecedence: 'New...',
+              load: function(query, callback) {
+                console.log(this);
+                var self = this;
+                if (!query.length) {
+                  this.clearOptions();
+                  this.refreshOptions();
+                  return;
+                };
+                mdict.search(query).then(function(list) { 
+                  list = list.map(function(v) {
+                    return {word: v, key: adaptKey(v)};
+                  });
+                  self.clearOptions();
+                  callback(list);
+                });
+              },
+              onChange: function() { $('#btnLookup').click();},
             });
         });
     } else {

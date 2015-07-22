@@ -24,9 +24,9 @@
  *       and having no intention to break protected ones.
  *       But keyword index encryption is common, so it is supported.
  *
- *  iii. Link to another record, which is a TODO task.
+ *  iii. Stylesheet substitution (is it really necessary?).
  *
- *   iv. Stylesheet substitution (is it really necessary?).
+ *   iv. Audio support: a todo-task.
  *
  * MDict software and its file format is developed by Rayman Zhang(张文伟),
  * read more on http://www.mdict.cn/ or http://www.octopus-studio.com/.
