@@ -11,11 +11,47 @@
   <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
   <script type="text/javascript" src="javascripts/script.js"></script>
 
-  <title>mdict-js</title>
+  <title>mdict-js: online sample viewer</title>
   <meta name="description" content="A pure Javascript implementation for parsing MDict file (mdx/mdd) ">
 
   <meta name="viewport" content="width=device-width,initial-scale=1">
 
+  <meta name="description" content="MDict JS">
+  <!--
+  <script src="require.js"></script>
+  <script src="jquery-1.11.1.js"></script>
+  <script src="lzo1x_decompress_safe.js"></script>
+  <script src="minilzo-decompress2.js"></script>
+  <script src="murmurhash3.js"></script>
+  -->
+  <link rel="stylesheet" type="text/css" href="">
+  <meta charset="utf-8">
+  <style>
+    #btnLookup {
+      border: none;
+      height: 2em;
+      font-size: 12pt;
+      font-weight: bold;
+    }
+    
+    #btnLookup:not([disabled]) {
+      background: #1A4FDD;
+      color: white;
+    }
+    
+    #dict-title {
+      position: absolute;
+      top: 0;
+      right: 0;
+      max-width: 300px;
+      font-size: 10px;
+      opacity: 0.9;
+    }
+    
+    #dict-title * {
+      font-size: 10px!important;
+    }
+  </style>
 </head>
 
 <body>
@@ -44,6 +80,19 @@
 <p>-- NOW UNDER DEVELOPMENT --</p>
 
 <p>BUT now you can try mdict-js online with your own dictionary files (mdx/mdd).</p>
+
+<div id="mdict-online-viewer">
+  Choose a dictionary file (*.mdx + optional *.mdd): <input id="dictfile" type="file" multiple=>
+  <p>
+  <input id="word" type="text" value="paddle">
+  <input id="btnLookup" type="button" value="look up" disabled="false">
+  
+  <div id="dict-title"></div>
+  <div id="definition">
+  </div>
+  <script type="text/javascript" src="conf.js"></script>
+  <script src="require.js" data-main="mdict"></script>  
+</div>
         </article>
       </div>
     </div>
