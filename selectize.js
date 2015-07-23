@@ -3693,7 +3693,11 @@ $dropdown.on('click touchstart', function(e) { e.stopPropagation();});
                     if (index >= 0 && index < this.items.length) {
                         option = this.options[this.items[index]];
                         if (this.deleteSelection(e)) {
-                            this.setTextboxValue(options.text.apply(this, [option]));
+                            var txt = options.text.apply(this, [option]);
+                            if (txt.length > 0) {
+                              txt = txt.substring(0, txt.length - 1);
+                            } 
+                            this.setTextboxValue(txt);
                             this.refreshOptions(true);
                         }
                         e.preventDefault();

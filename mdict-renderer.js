@@ -55,11 +55,14 @@
     }
     
     return {
-      lookup: function lookup(word) {
+      lookup: function lookup(word, offset) {
         return new Promise(function (resolve) {
           (resources['mdx'] || resources['mdd']).then(function (lookup) {
-            lookup(word).then(function (definition) {
-              var $content = $('<div>').html(definition);
+            lookup(word, offset).then(function (definitions) {
+              var html = definitions.reduce(function(prev, txt) { 
+                return prev + '<p></p>' + txt;
+              }, '<p>' + definitions.length + ' entry(ies) </p>');
+              var $content = $('<div>').html(html);
               if (resources['mdd']) {
                 $content.find('img[src]').each(replaceImage);
               }

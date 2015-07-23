@@ -5,6 +5,7 @@ define('mdict-parseXml', function() {
 });
 
 require(['jquery', 'mdict-parser', 'mdict-renderer', 'selectize'], function($, MParser, MRenderer, Selectize) {
+  
   $('#word').selectize({maxItems: 1});
   
   var $input = $('#dictfile').on('change', accept);
@@ -25,13 +26,20 @@ require(['jquery', 'mdict-parser', 'mdict-renderer', 'selectize'], function($, M
         MParser(fileList).then(function(resources) {
           var mdict = MRenderer(resources);
           
+          function doSearch(phrase, offset) {
+              var result = mdict.lookup(phrase, offset).then(function($content) {
+                $('#definition').empty().append($content.contents());
+              });
+              $('#definition').html(result);
+          }
+          
 //          mdict.search('mind').then(function(list) {
 //            console.log(list);
 //          });
-
-          mdict.search("o'clock").then(function(list) {
-            console.log(list);
-          });
+//
+//          mdict.search("o'clock").then(function(list) {
+//            console.log(list);
+//          });
           
           $('#dict-title').html((resources['mdx'] || resources['mdd']).value().description || '** no description **');
 
@@ -39,20 +47,17 @@ require(['jquery', 'mdict-parser', 'mdict-renderer', 'selectize'], function($, M
             .attr('disabled', false)
             .off('.#mdict')
             .on('click.#mdict', function() {
-              var result = mdict.lookup($('#word').val()).then(function($content) {
-                $('#definition').empty().append($content.contents());
-              });
-              $('#definition').html(result);
+              doSearch($('#word').val());
             }).click();
           
             $('#word')[0].selectize.destroy();
           
             $('#word').selectize({
+              plugins: ['restore_on_backspace'],
               maxItems: 1,
-              valueField: 'word',
+              valueField: 'value',
               labelField: 'word',
               searchField: 'word',
-              sortField: 'key',
               options: [],
               delimiter: '~~',
               create: function(v, callback) {
@@ -72,14 +77,26 @@ require(['jquery', 'mdict-parser', 'mdict-renderer', 'selectize'], function($, M
                   return;
                 };
                 mdict.search(query).then(function(list) { 
+                  console.log(list);
+                  var i = 0;
                   list = list.map(function(v) {
-                    return {word: v, key: adaptKey(v)};
+                    i++;
+                    return {word: v, key: adaptKey(v), value: [v, v.offset]};
                   });
                   self.clearOptions();
                   callback(list);
                 });
               },
-              onChange: function() { $('#btnLookup').click();},
+              onChange: function(value) {
+                var item = this.options[value];
+                if (item) {
+                  var value = item.word;
+                  doSearch(value, value.offset);
+                  $('#word').val(value);
+                } else {
+                  $('#definition').empty();
+                }
+              },
             });
         });
     } else {
@@ -87,16 +104,19 @@ require(['jquery', 'mdict-parser', 'mdict-renderer', 'selectize'], function($, M
     }
     
     // jump to word with link started with "entry://"
+    // TODO: have to ignore in-page jump
     $('#definition').on('click', 'a', function(e) {
       var href = $(this).attr('href');
       if (href && href.substring(0, 8) === 'entry://') {
-        var word = href.substring(8).replace(/(^[/\\])|([/]$)/, '');
-        
-        $('#word').val(word);
-        $('#btnLookup').click();
+        var word = href.substring(8);
+        if (word.charAt(0) !== '#') {
+          word = word.replace(/(^[/\\])|([/]$)/, '');
+
+          $('#word').val(word);
+          $('#btnLookup').click();
+        }
       }
     });
-
   }
 
   
