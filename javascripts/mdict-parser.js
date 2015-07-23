@@ -109,9 +109,9 @@
    * @param len length to slice
    */
   function sliceThen(file, offset, len) {
-    var p = new Promise(function(resolve) {
+    var p = new Promise(function(_resolve) {
       var reader = new FileReader();
-      reader.onload = function() { resolve(reader.result); }
+      reader.onload = function() { _resolve(reader.result); }
       console.log('slice: ', offset, ' + ', len);
       reader.readAsArrayBuffer(file.slice(offset, offset + len)); // It's an asynchronous call!
     });
@@ -124,10 +124,8 @@
     p.exec = function(proc /*, args... */) {
       var args = Array.prototype.slice.call(arguments, 1);
       return p.then(function(data) {
-        return new Promise(function(resolve) {
           args.unshift(data);
-          resolve([proc.apply(null, args), data]);
-        });
+          return resolve([proc.apply(null, args), data]);
       });
     };
 
@@ -192,9 +190,23 @@
 
                 while (true) {
                   if (hashcode === val) {
-                    // NOTE: size of the last record is not required so leaving it with value of undefined.
-                    var at = view[(i << 1) + 1];
-                    return {offset: data[at], size: at < data.length - 2 ? data[at + 1] - data[at] : void 0};
+                    // return all possible keys with same hash code
+                    while (true) {
+                      if (view[--i << 1] !== hashcode) {
+                        i++;
+                        break;
+                      }
+                    }
+                    var result = [];
+                    while (true) {
+                      var at = view[(i << 1) + 1];
+                      // NOTE: size of the last record is not required so leaving it with value of undefined.
+                      result.push({offset: data[at], size: at < data.length - 2 ? data[at + 1] - data[at] : void 0});
+                      if (view[++i << 1] !== hashcode) {
+                        break;
+                      }
+                    }
+                    return result;
                   } else if (hi === lo || i === hi || i === lo) {
                     return;
                   }
@@ -622,41 +634,52 @@
       scanner.forward(keyinfo.offset - block.decomp_offset);
       return scanner.readRaw(keyinfo.size);
     }
+    
+    /**
+     * 
+     */
+    function findWord(keyinfo) {
+      var block = RECORD_BLOCK_TABLE.find(keyinfo.offset);
+      return _slice(block.comp_offset, block.comp_size)
+                .exec(read_definition, keyinfo, block)
+                  .spread(function (definition) { return resolve(followLink(definition, LOOKUP.mdx)); });
+    }
+    
+    function findResource(keyinfo) {
+      var block = RECORD_BLOCK_TABLE.find(keyinfo.offset);
+      return _slice(block.comp_offset, block.comp_size)
+                .exec(read_object, keyinfo, block)
+                  .spread(function (blob) { return resolve(blob); });
+    }
+    
 
+    
     // TODO: search nearest in case of collision of hashcode
-    // TODO: following jump link
     var LOOKUP = {
-      mdx: function(word, adjacent) {
-        word = word.trim().toLowerCase();
-        return new Promise(function(resolve, reject) {
-          var keyinfo = KEY_TABLE.find(word);
-          if (keyinfo) {
-            var block = RECORD_BLOCK_TABLE.find(keyinfo.offset);
-            _slice(block.comp_offset, block.comp_size)
-              .exec(read_definition, keyinfo, block)
-                .spread(function (definition) { resolve(followLink(definition, LOOKUP.mdx)); })
-                .caught(function (e) { reject('*NOT FOUND*', e); });
-          } else {
-            reject("*NOT FOUND*");
+      mdx: function(phrase, offset) {
+        console.log('phrase = ', phrase);
+        var word = phrase.trim().toLowerCase();
+        var infos = KEY_TABLE.find(word);
+        if (infos) {
+          if (offset !== void 0) {
+            infos = infos.filter(function(v) { return v.offset === offset;});
           }
-        });
+          // TODO: sort according to offset
+          return harvest(infos.map(findWord));
+        } else {
+          return reject('*WORD NOT FOUND* ' + phrase);
+        }
       },
       
-      mdd: function(word) {
-        word = word.trim().toLowerCase();
+      mdd: function(phrase) {
+        var word = phrase.trim().toLowerCase();
         word = '\\' + word.replace(/(^[/\\])|([/]$)/, '');
-        return new Promise(function(resolve, reject) {
-          var keyinfo = KEY_TABLE.find(word);
-          if (keyinfo) {
-            var block = RECORD_BLOCK_TABLE.find(keyinfo.offset);
-            _slice(block.comp_offset, block.comp_size)
-              .exec(read_object, keyinfo, block)
-                .spread(function (blob) { resolve(blob); })
-                .caught(function (e) { reject("*NOT FOUND*", e); });
-          } else {
-            reject("*NOT FOUND*");
-          }
-        });
+        var keyinfo = KEY_TABLE.find(word)[0];
+        if (keyinfo) {
+          return findResource(keyinfo);
+        } else {
+          return reject("*RESOURCE NOT FOUND* " + phrase);
+        }
       }
     };
     
@@ -666,9 +689,17 @@
         phrase = _adaptKey(phrase);
         var kbloc = reduce(KEY_INDEX, phrase);
         return loadKeys(kbloc).then(function(list) {
-          var idx = shrink(list, phrase),
-              candidates = list.slice(idx, idx + MAX_CANDIDATES);
+          var idx = shrink(list, phrase);
           
+          while (true) {
+            if (_adaptKey(list[--idx]) !== phrase) {
+              idx++;
+              break;
+            }
+          }
+          
+          var candidates = list.slice(idx, idx + MAX_CANDIDATES);
+
           var shortage = MAX_CANDIDATES - candidates.length;
           if (shortage > 0 && (kbloc = KEY_INDEX[kbloc.index + 1]) !== void 0) {
             return loadKeys(kbloc).then(function(nextList) {
@@ -682,15 +713,16 @@
     
     function loadKeys(kbloc) {
       if (_last_keys && _last_keys.pilot === kbloc.first_word) {
-        return Promise.resolve(_last_keys.list);
+        return resolve(_last_keys.list);
       } else {
         return _slice(kbloc.offset, kbloc.comp_size).then(function(input) {
           console.log('load keys...');
           var scanner = Scanner(input).readBlock(kbloc.comp_size, kbloc.decomp_size),
               list = Array(kbloc.num_entries);
           for (var i = 0; i < kbloc.num_entries; i++) {
-            scanner.readNum();
-            list[i] = scanner.readText();
+            var offset = scanner.readNum();
+            list[i] = new Object(scanner.readText());
+            list[i].offset = offset;
           }
           _last_keys = {list: list, pilot: kbloc.first_word};
           return list;
@@ -710,6 +742,7 @@
       }
     }
     
+    // TODO: lookback for possible same key
     // Reduce the array to index of an element which contains or is nearest one matching a given phrase.
     function shrink(arr, phrase) {
       var len = arr.length, sub;
@@ -740,61 +773,60 @@
       }
     }
     
-    return new Promise(function(resolve) {
-      var pos = 0;
+    // start to load mdx/mdd file
+    var pos = 0;
 
-      // read first 4 bytes to get header length
-      _slice(pos, 4).exec(read_file_head).spread(function(len) {
-        pos += 4;
-        // then parse dictionary attributes in remained header section (header_str:len + checksum:4 bytes),
-        // also load next first 44 bytes of keyword section
-        return _slice(pos, len + 48).exec(read_header_sect, len);
-        
-      }).spread(function(header_remain_len, input) {
-          pos += header_remain_len;  // start of keyword section
-          return [read_keyword_sect(input, header_remain_len)];
-        
-      }).spread(function(keyword_sect) {
-        console.log(keyword_sect);
-        pos += keyword_sect.len;    // start of key index
-        var len = keyword_sect.key_index_comp_len + keyword_sect.key_blocks_len; 
-                                    // total length of key index and key block
-        
-        // parallel reading both keyword & record section 
-        return [
-          // read keyword index, and then read all key blocks
-          _slice(pos, len).exec(read_keyword_index, keyword_sect, pos).spread(function (keyword_index, input) {
-            if (ext === 'mdx') {
-              KEY_INDEX = keyword_index;
-            }
-            
-            var scanner = Scanner(input);
-            scanner.forward(keyword_sect.key_index_comp_len);
+    // read first 4 bytes to get header length
+    return _slice(pos, 4).exec(read_file_head).spread(function(len) {
+      pos += 4;
+      // then parse dictionary attributes in remained header section (header_str:len + checksum:4 bytes),
+      // also load next first 44 bytes of keyword section
+      return _slice(pos, len + 48).exec(read_header_sect, len);
 
-            KEY_TABLE.alloc(keyword_sect.num_entries);
-            for (var i = 0, size = keyword_index.length; i < size; i++) {
-              read_key_block(scanner, keyword_index[i]);
-            }
+    }).spread(function(header_remain_len, input) {
+        pos += header_remain_len;  // start of keyword section
+        return [read_keyword_sect(input, header_remain_len)];
 
-            KEY_TABLE.sort();
-          }),
-          
-          // read head of record section, and then read all record blocks
-          _slice(pos += len, 32).exec(read_record_sect, pos).spread(function (record_sect) {
-            console.log(record_sect);
-            pos += record_sect.len;         // start of record blocks
-            len  = record_sect.index_len;   // total length of record blocks
-            return _slice(pos, len).exec(read_record_block, record_sect);
-          })      
-        ];
-        
-      }).spread(function() {
-        console.log('-- parse done --', file.name);
+    }).spread(function(keyword_sect) {
+      console.log(keyword_sect);
+      pos += keyword_sect.len;    // start of key index
+      var len = keyword_sect.key_index_comp_len + keyword_sect.key_blocks_len; 
+                                  // total length of key index and key block
 
-        // resolve and return lookup() function according to file extension (mdx/mdd)
-        LOOKUP[ext].description = attrs.Description;
-        resolve(LOOKUP[ext]);
-      });
+      // parallel reading both keyword & record section 
+      return [
+        // read keyword index, and then read all key blocks
+        _slice(pos, len).exec(read_keyword_index, keyword_sect, pos).spread(function (keyword_index, input) {
+          if (ext === 'mdx') {
+            KEY_INDEX = keyword_index;
+          }
+
+          var scanner = Scanner(input);
+          scanner.forward(keyword_sect.key_index_comp_len);
+
+          KEY_TABLE.alloc(keyword_sect.num_entries);
+          for (var i = 0, size = keyword_index.length; i < size; i++) {
+            read_key_block(scanner, keyword_index[i]);
+          }
+
+          KEY_TABLE.sort();
+        }),
+
+        // read head of record section, and then read all record blocks
+        _slice(pos += len, 32).exec(read_record_sect, pos).spread(function (record_sect) {
+          console.log(record_sect);
+          pos += record_sect.len;         // start of record blocks
+          len  = record_sect.index_len;   // total length of record blocks
+          return _slice(pos, len).exec(read_record_block, record_sect);
+        })      
+      ];
+
+    }).spread(function() {
+      console.log('-- parse done --', file.name);
+
+      // resolve and return lookup() function according to file extension (mdx/mdd)
+      LOOKUP[ext].description = attrs.Description;
+      return resolve(LOOKUP[ext]);
     });
   };
   
@@ -809,6 +841,33 @@
   }
   
   /**
+   * Wrap value as a resolved promise.
+   */
+  function resolve(value) { return Promise.resolve(value); }
+  
+  /**
+   * Wrap value as a rejected promise.
+   */
+  function reject(reason) { return Promise.reject(reason); }
+  
+  /**
+   * Harvest resolved promises, if all failed return their failed reasons. 
+   */
+  function harvest(outcomes) {
+    return Promise.settle(outcomes).then(function(results) {
+      var solved = [], failed = [];
+      for (var i = 0; i < results.length; i++) {
+        if (results[i].isResolved()) {
+          solved.push(results[i].value());
+        } else {
+          failed.push(results[i].reason());
+        }
+      }
+      return solved.length ? solved : failed;
+    });
+  }
+  
+  /**
    * Load a set of files which will be parsed as MDict dictionary & resource (mdx/mdd).
    */
   return function load(files) {
@@ -818,9 +877,8 @@
         resources.push(resources[ext] = parse_mdict(f, ext));
       });
         
-      return new Promise(function(resolve) {
-        Promise.all(resources).then(function() { resolve(resources); });
-      });
+      return Promise.all(resources)
+                    .then(function() { return resolve(resources); });
     };
   
 }));
