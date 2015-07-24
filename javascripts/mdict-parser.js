@@ -661,7 +661,7 @@
     // TODO: search nearest in case of collision of hashcode
     var LOOKUP = {
       mdx: function(phrase, offset) {
-        console.log('phrase = ', phrase);
+        console.log('phrase = ' + phrase);
         var word = phrase.trim().toLowerCase();
         if (KEY_TABLE.isReady()) {
           // express mode
@@ -718,7 +718,6 @@
     // TODO: exact match
     // TODO: extend to neighboring block before/after
     function findCandidates(phrase) {
-        console.log('adjacent keys for ', phrase);
         phrase = _adaptKey(phrase);
         var kbloc = reduce(KEY_INDEX, phrase);
         return loadKeys(kbloc).then(function(list) {
@@ -867,7 +866,7 @@
       console.log('-- parse done --', file.name);
       
       // option to change delay value
-      setTimeout(willLoadKeyTable, 500);
+      // setTimeout(willLoadKeyTable, 500);
       
       // resolve and return lookup() function according to file extension (mdx/mdd)
       LOOKUP[ext].description = attrs.Description;
