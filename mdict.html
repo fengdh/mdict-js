@@ -29,10 +29,16 @@ Released under the MIT license: http://jsbin.mit-license.org
       font-weight: bold;
       vertical-align: top;
       border-radius: 3px;
+      border-style: solid;
+      border-width: 1px;
+      border-color: transparent;
+      padding: 0 2em;
+      transition: background 400ms ease;
     }
     
     #btnLookup:not([disabled]) {
-      background: #1A4FDD;
+      background-color: #1A4FDD;
+      xbackground-image: none;
       color: white;
     }
     
@@ -53,14 +59,60 @@ Released under the MIT license: http://jsbin.mit-license.org
       display: inline-block;
       min-width: 18em;
     }
+    
+    /*---------------------------*/			
+
+    .stripes {
+        background-color: #1A4FDD;
+        color: white;
+        border-color: #33D;
+        -webkit-background-size: 30px 30px;
+        -moz-background-size: 30px 30px;
+        background-size: 30px 30px;			
+        background-image: -webkit-gradient(linear, left top, right bottom,
+                            color-stop(.25, rgba(255, 255, 255, 0.34)), color-stop(.25, transparent),
+                            color-stop(.5, transparent), color-stop(.5, rgba(255, 255, 255, .34)),
+                            color-stop(.75, rgba(255, 255, 255, 0.34)), color-stop(.75, transparent),
+                            to(transparent));
+        background-image: -webkit-linear-gradient(135deg, rgba(255, 255, 255, 0.34) 25%, transparent 25%,
+                            transparent 50%, rgba(255, 255, 255, 0.34) 50%, rgba(255, 255, 255, 0.34) 75%,
+                            transparent 75%, transparent);
+        background-image: -moz-linear-gradient(135deg, rgba(255, 255, 255, 0.34) 25%, transparent 25%,
+                            transparent 50%, rgba(255, 255, 255, 0.34) 50%, rgba(255, 255, 255, 0.34) 75%,
+                            transparent 75%, transparent);
+        background-image: -ms-linear-gradient(135deg, rgba(255, 255, 255, 0.34) 25%, transparent 25%,
+                            transparent 50%, rgba(255, 255, 255, 0.34) 50%, rgba(255, 255, 255, 0.34) 75%,
+                            transparent 75%, transparent);
+        background-image: -o-linear-gradient(135deg, rgba(255, 255, 255, 0.34) 25%, transparent 25%,
+                            transparent 50%, rgba(255, 255, 255, 0.34) 50%, rgba(255, 255, 255, 0.34) 75%,
+                            transparent 75%, transparent);
+        background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.34) 25%, transparent 25%,
+                            transparent 50%, rgba(255, 255, 255, 0.34) 50%, rgba(255, 255, 255, .35) 75%,
+                            transparent 75%, transparent);            
+
+        -webkit-animation: animate-stripes 1s linear infinite;
+        -moz-animation: animate-stripes 1s linear infinite;       		
+    }
+
+    @-webkit-keyframes animate-stripes { 
+        0% {background-position: 0 0;} 100% {background-position: 60px 0;}
+    }
+
+
+    @-moz-keyframes animate-stripes {
+        0% {background-position: 0 0;} 100% {background-position: 60px 0;}
+    }
+
+    
+    
   </style>
 
 </head>
 <body>
   Choose a dictionary file (*.mdx + optional *.mdd): <input id="dictfile" type="file" multiple=>
   <p>
-  <input id="word" type="text" value="paddle">
-  <input id="btnLookup" type="button" value="look up" disabled="false">
+  <input id="word" type="text" value="pa">
+  <input id="btnLookup" type="button" value="look up" disabled="false" class="">
   
   <div id="dict-title"></div>
   <div id="definition">

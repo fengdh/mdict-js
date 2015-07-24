@@ -41,6 +41,7 @@
 
   return function createRenderer(resources) {
     
+    // TODO: LRU cache
     function replaceImage(index, img) {
       var $img = $(img);
       resources['mdd'].then(function (lookup) {
@@ -54,29 +55,33 @@
       });
     }
     
+    function render($content) {
+      if (resources['mdd']) {
+        $content.find('img[src]').each(replaceImage);
+      }
+      return $content;
+    }    
+    
     return {
       lookup: function lookup(word, offset) {
-        return new Promise(function (resolve) {
-          (resources['mdx'] || resources['mdd']).then(function (lookup) {
-            lookup(word, offset).then(function (definitions) {
-              var html = definitions.reduce(function(prev, txt) { 
-                return prev + '<p></p>' + txt;
-              }, '<p>' + definitions.length + ' entry(ies) </p>');
-              var $content = $('<div>').html(html);
-              if (resources['mdd']) {
-                $content.find('img[src]').each(replaceImage);
-              }
-              resolve($content);
-            });
+        return (resources['mdx'] || resources['mdd'])
+          .then(function (lookup) {
+            return lookup(word, offset);
+          }).then(function (definitions) {
+            var html = definitions.reduce(function(prev, txt) { 
+              return prev + '<p></p>' + txt;
+            }, '<p>' + definitions.length + ' entry(ies) </p>');
+            return Promise.resolve(render($('<div>').html(html)));
           });
-        });
       },
       
       search: function (word) {
         return resources['mdx'].then(function(lookup) {
           return lookup.search(word);
         });
-      }
+      },
+      
+      render: render,
     };
   }
 

@@ -21,6 +21,7 @@ require(['jquery', 'mdict-parser', 'mdict-renderer', 'selectize'], function($, M
     $('#btnLookup').attr('disabled', true);
 
     if (fileList.length > 0) {
+        $('#btnLookup').addClass('stripes');
         $('#word').on('keyup', function(e) { e.which === 13 && $('#btnLookup').click(); });
 
         MParser(fileList).then(function(resources) {
@@ -42,7 +43,8 @@ require(['jquery', 'mdict-parser', 'mdict-renderer', 'selectize'], function($, M
 //          });
           
           $('#dict-title').html((resources['mdx'] || resources['mdd']).value().description || '** no description **');
-
+          mdict.render($('#dict-title'));
+          
           $('#btnLookup')
             .attr('disabled', false)
             .off('.#mdict')
