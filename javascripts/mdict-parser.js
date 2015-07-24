@@ -58,6 +58,7 @@
   }
 
 }(this, function(pako, lzo, ripemd128, MurmurHash3, Promise, parseXml) {
+  var UNDEFINED = void 0;
   
   // Seed value used with MurmurHash3 function.
   var _HASH_SEED = 0xFE176;
@@ -147,7 +148,8 @@
    * To accept arbitary user entry, key is converted to lower case when computing its hash code.
    */
   function createKeyTable() {
-    var pos = 0,    // mark current position
+    var ready,
+        pos = 0,    // mark current position
         order = 0,  // key order
         arr, view,  // backed Float64Array, view as Uint32Array to store (key_hashcode, original_key_index)
         data,       // backed Uint32Array to store record's offset in alphabetic order
@@ -180,6 +182,7 @@
       sort:   function() {
                 this.pack();
                 Array.prototype.sort.call(arr, function(f1, f2) { return F64[0] = f1, F64[1] = f2, U32[0] - U32[2]; });
+                ready = true;
               },
       // Given a key, appling its hash code to run binary search in key table.
       // If matched then return [record_offset, record_size], else return undefined.
@@ -201,7 +204,7 @@
                     while (true) {
                       var at = view[(i << 1) + 1];
                       // NOTE: size of the last record is not required so leaving it with value of undefined.
-                      result.push({offset: data[at], size: at < data.length - 2 ? data[at + 1] - data[at] : void 0});
+                      result.push({offset: data[at], size: at < data.length - 2 ? data[at + 1] - data[at] : UNDEFINED});
                       if (view[++i << 1] !== hashcode) {
                         break;
                       }
@@ -216,6 +219,7 @@
                   val = view[i << 1];
                 }
               },
+      isReady: function () { return ready; },
       debug:  function() { console.log(this.pack()); console.log(data); }
     }
   };
@@ -450,7 +454,7 @@
         
         // Read raw data as Uint8Array from current offset with specified length in bytes
         readRaw: function(len) {
-          return conseq(new Uint8Array(buf, offset, len), this.forward(len === void 0 ? buf.byteLength - offset : len));
+          return conseq(new Uint8Array(buf, offset, len), this.forward(len === UNDEFINED ? buf.byteLength - offset : len));
         },
       };
 
@@ -531,10 +535,10 @@
           num_entries: conseq(scanner.readNum(), size = scanner.readShort()),
 // UNUSED          
 //          first_size:  size = scanner.readShort(),
-          first_word:  conseq(scanner.readTextSized(size), size = scanner.readShort(), scanner.readTextSized(size)),
+          first_word:  conseq(scanner.readTextSized(size), size = scanner.readShort()),
 // UNUSED          
 //          last_size:   size = scanner.readShort(),
-//          last_word:   scanner.readTextSized(size),
+          last_word:   scanner.readTextSized(size),
           comp_size:   size = scanner.readNum(),
           decomp_size: scanner.readNum(),
           // extra fields
@@ -611,9 +615,9 @@
     /**
      * Given a keyinfo, read its definition as text.
      */
-    function read_definition(input, keyinfo, block) {
+    function read_definition(input, offset, block) {
       var scanner = Scanner(input).readBlock(block.comp_size);
-      scanner.forward(keyinfo.offset - block.decomp_offset);
+      scanner.forward(offset - block.decomp_offset);
       return scanner.readText();
     }
     
@@ -641,7 +645,7 @@
     function findWord(keyinfo) {
       var block = RECORD_BLOCK_TABLE.find(keyinfo.offset);
       return _slice(block.comp_offset, block.comp_size)
-                .exec(read_definition, keyinfo, block)
+                .exec(read_definition, keyinfo.offset, block)
                   .spread(function (definition) { return resolve(followLink(definition, LOOKUP.mdx)); });
     }
     
@@ -659,39 +663,68 @@
       mdx: function(phrase, offset) {
         console.log('phrase = ', phrase);
         var word = phrase.trim().toLowerCase();
-        var infos = KEY_TABLE.find(word);
-        if (infos) {
-          if (offset !== void 0) {
-            infos = infos.filter(function(v) { return v.offset === offset;});
+        if (KEY_TABLE.isReady()) {
+          // express mode
+          var infos = KEY_TABLE.find(word);
+          if (infos) {
+            if (offset !== UNDEFINED) {
+              infos = infos.filter(function(v) { return v.offset === offset;});
+            }
+            // TODO: sort according to offset
+            return harvest(infos.map(findWord));
+          } else {
+            return reject('*WORD NOT FOUND* ' + phrase);
           }
-          // TODO: sort according to offset
-          return harvest(infos.map(findWord));
         } else {
-          return reject('*WORD NOT FOUND* ' + phrase);
+          // scan mode
+          return findCandidates(word).then(function(candidates) {
+            return candidates.filter(function(one) {
+              return one.toLowerCase() === word;
+            });
+          }).then(function(candidates) {
+            console.log(candidates.join(', '));
+            return harvest(candidates.map(findWord));
+          });
         }
       },
       
       mdd: function(phrase) {
         var word = phrase.trim().toLowerCase();
         word = '\\' + word.replace(/(^[/\\])|([/]$)/, '');
-        var keyinfo = KEY_TABLE.find(word)[0];
-        if (keyinfo) {
-          return findResource(keyinfo);
+        if (KEY_TABLE.isReady()) {
+          // express mode
+          var keyinfo = KEY_TABLE.find(word)[0];
+          if (keyinfo) {
+            return findResource(keyinfo);
+          } else {
+            return reject("*RESOURCE NOT FOUND* " + phrase);
+          }
         } else {
-          return reject("*RESOURCE NOT FOUND* " + phrase);
+          // scan mode
+          return findCandidates(word).then(function(candidates) {
+            return candidates.filter(function(one) {
+              return one.toLowerCase() === word;
+            });
+          }).then(function(candidates) {
+            return findResource(candidates[0]);
+          });
         }
       }
     };
     
     var MAX_CANDIDATES = 64, _last_keys;
-    LOOKUP.mdx.search = function(phrase) {
+    
+    // TODO: max count
+    // TODO: exact match
+    // TODO: extend to neighboring block before/after
+    function findCandidates(phrase) {
         console.log('adjacent keys for ', phrase);
         phrase = _adaptKey(phrase);
         var kbloc = reduce(KEY_INDEX, phrase);
         return loadKeys(kbloc).then(function(list) {
           var idx = shrink(list, phrase);
           
-          while (true) {
+          while (true && idx > 0) {
             if (_adaptKey(list[--idx]) !== phrase) {
               idx++;
               break;
@@ -701,7 +734,7 @@
           var candidates = list.slice(idx, idx + MAX_CANDIDATES);
 
           var shortage = MAX_CANDIDATES - candidates.length;
-          if (shortage > 0 && (kbloc = KEY_INDEX[kbloc.index + 1]) !== void 0) {
+          if (shortage > 0 && (kbloc = KEY_INDEX[kbloc.index + 1]) !== UNDEFINED) {
             return loadKeys(kbloc).then(function(nextList) {
               Array.prototype.push.apply(candidates, nextList.slice(0, shortage));
               return candidates;
@@ -709,7 +742,8 @@
           }
           return candidates;
         });
-    }
+    };
+    LOOKUP.mdx.search = findCandidates;
     
     function loadKeys(kbloc) {
       if (_last_keys && _last_keys.pilot === kbloc.first_word) {
@@ -723,6 +757,9 @@
             var offset = scanner.readNum();
             list[i] = new Object(scanner.readText());
             list[i].offset = offset;
+            if (i > 1) {
+              list[i-1].size = offset - list[i-1].offset;
+            }
           }
           _last_keys = {list: list, pilot: kbloc.first_word};
           return list;
@@ -793,14 +830,12 @@
       var len = keyword_sect.key_index_comp_len + keyword_sect.key_blocks_len; 
                                   // total length of key index and key block
 
-      // parallel reading both keyword & record section 
-      return [
-        // read keyword index, and then read all key blocks
-        _slice(pos, len).exec(read_keyword_index, keyword_sect, pos).spread(function (keyword_index, input) {
-          if (ext === 'mdx') {
-            KEY_INDEX = keyword_index;
-          }
-
+      // read keyword index, and then read all key blocks
+      return _slice(pos, len).exec(read_keyword_index, keyword_sect, pos).spread(function (keyword_index, input) {
+        KEY_INDEX = keyword_index;
+        
+        // delay to load key table
+        function willLoadKeyTable() {
           var scanner = Scanner(input);
           scanner.forward(keyword_sect.key_index_comp_len);
 
@@ -810,8 +845,15 @@
           }
 
           KEY_TABLE.sort();
-        }),
-
+          console.log('KEY_TABLE loaded.');
+        };
+        
+        return [len, willLoadKeyTable];
+      });
+    }).spread(function (len, willLoadKeyTable) {    
+      // parallel reading both keyword & record section 
+      return [
+        willLoadKeyTable,
         // read head of record section, and then read all record blocks
         _slice(pos += len, 32).exec(read_record_sect, pos).spread(function (record_sect) {
           console.log(record_sect);
@@ -821,9 +863,12 @@
         })      
       ];
 
-    }).spread(function() {
+    }).spread(function(willLoadKeyTable) {
       console.log('-- parse done --', file.name);
-
+      
+      // option to change delay value
+      setTimeout(willLoadKeyTable, 500);
+      
       // resolve and return lookup() function according to file extension (mdx/mdd)
       LOOKUP[ext].description = attrs.Description;
       return resolve(LOOKUP[ext]);
@@ -882,5 +927,3 @@
     };
   
 }));
-
-
