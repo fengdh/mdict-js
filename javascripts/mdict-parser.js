@@ -817,7 +817,19 @@
     // TODO: extend to neighboring block before/after
     function findCandidates(phrase) {
         phrase = _adaptKey(phrase);
-        var kdx = reduce(KEY_INDEX, phrase);
+        var kdx = reduce(KEY_INDEX, phrase), 
+            index = kdx.index - 1, prev;
+      
+        // look back to search for the first record block containing the specified phrase
+        if (phrase <= _adaptKey(kdx.last_word)) {
+          while (prev = KEY_INDEX[index]) {
+            if (_adaptKey(prev.last_word) !== _adaptKey(kdx.last_word)) {
+              break;
+            }
+            kdx = prev;
+            index--;
+          } 
+        }
       
         return loadKeys(kdx).then(function(list) {
           var idx = shrink(list, phrase);
@@ -870,18 +882,9 @@
       var len = arr.length;
       if (len > 1) {
         len = len >> 1;
-        if (phrase < _adaptKey(arr[len].first_word)) {
-          // look back
-          while (len > 1) {
-            if (arr[len - 1].last_word !== arr[len].first_word) {
-              break;
-            }
-            len--;
-          }
-          return reduce(arr.slice(0, len), phrase);
-        } else {
-          return reduce(arr.slice(len), phrase);
-        }
+        return (phrase < _adaptKey(arr[len].first_word)) 
+                  ? reduce(arr.slice(0, len), phrase)
+                  : reduce(arr.slice(len), phrase);
       } else {
         return arr[0];
       }
@@ -1001,5 +1004,3 @@
     };
   
 }));
-
-
