@@ -1,0 +1,1485 @@
+.Entry
+{
+	/*font-family:"Arial Unicode MS";*/
+/*    font-family : Verdana;
+    font-size : 11pt; */
+    text-align: justify;
+	display:block;
+	margin-top:8px;
+}
+.EAHead{
+	display:none;
+}
+.ABBR
+{
+	font-weight:bold;
+}
+
+.ACTIV
+{
+	display:none; 
+}
+
+.AMEQUIV
+{
+	font-weight:bold;
+}
+
+.AmEVariant
+{
+}
+
+.AMEVARPRON
+{
+}
+
+.BOX
+{
+	display:none;
+}
+
+.BREQUIV
+{
+	font-weight:bold;
+}
+
+.BrEVariant
+{
+}
+
+.COLLO
+{
+	font-weight:bold;
+	color:blue;
+}
+
+.ColloExa
+{
+	display:block;
+}
+
+.COLLOINEXA
+{
+	font-style:italic;
+	font-weight:bold;
+}
+
+.COMMENT
+{
+	display:none;
+}
+
+.COMP
+{
+	font-weight:bold;
+}
+
+.Crossref
+{
+}
+
+.Crossrefto
+{
+}
+
+.CROSSREFTYPE
+{
+}
+
+.DEF, .GLOSS
+{
+	font-weight:normal;
+	font-style:normal;
+	color:black;
+	/*font-family:Verdana;*/
+}
+
+.DERIV
+{
+	font-weight:bold;
+	color:blue;
+}
+
+
+.Error
+{
+	display:block;
+}
+
+.EXAMPLE
+{
+	font-style:italic;
+	display:block;
+	color:black;
+}
+
+.FIELD
+{
+	display:none;
+}
+
+.FREQ, .AC
+{
+	font-weight:bold;
+	color:white;
+	background-color: magenta;
+
+}
+
+.FULLFORM
+{
+	font-weight:bold;
+}
+
+.GEO, span.geo
+{
+	font-style:italic;
+	color:purple;
+}
+
+.GLOSS
+{
+}
+
+.GRAM
+{
+	color:green;
+}
+
+.GramExa
+{
+	display:block;
+}
+
+.Head
+{
+	display:block;
+	margin-left:0px;
+}
+
+.PhrVbEntry .Head
+{
+	display:block;
+	margin-left:0px;
+}
+
+.Hint
+{
+}
+
+.HINTBOLD
+{
+	font-weight:bold;
+}
+
+.HINTITALIC
+{
+	font-style:italic;
+}
+
+.HINTTITLE
+{
+	font-weight:bold;
+}
+
+.HOMNUM
+{
+    vertical-align : super;
+    font-size : 8pt;
+    color: blue;
+	font-weight:bold;
+}
+
+.HOMNUM_keyword
+{
+    color: magenta;
+}
+
+.HWD
+{
+	display:none;
+}
+
+.HYPHENATION
+{
+	font-weight:bold;
+	font-size:120%;
+    color: blue;
+	margin-left:0px;
+}
+
+.HYPHENATION_keyword
+{
+    color: magenta;
+}
+
+.Inflections
+{
+}
+
+.LEXUNIT
+{
+	font-weight:bold;
+	color:blue;
+}
+
+.LEXUNIT_newline
+{
+	display:block;
+}
+
+.LEXVAR
+{
+	font-weight:bold;
+	color:blue;
+}
+
+.ThesBox .LEXVAR
+{
+	color:black;
+}
+
+.ColloBox .LEXVAR
+{
+	color:black;
+}
+
+.LINKWORD
+{
+	/*font-family:Times New Roman;*/
+	font-style:italic;
+}
+
+.NonDV
+{
+	color:blue;
+}
+
+.NOTE
+{
+	display:none;
+}
+
+.Noteprompt
+{
+	display:none;
+}
+
+.OBJECT
+{
+	font-weight:bold;
+	color:blue;
+}
+
+.OPP
+{
+	font-weight:bold;
+}
+
+.ORTHVAR
+{
+	font-weight:bold;
+	color:blue;
+}
+
+.PASTPART
+{
+	font-weight:bold;
+}
+
+.PASTTENSE
+{
+	font-weight:bold;
+}
+
+.PhrVbEntry
+{
+	display:block;
+	margin-top:10px;
+	margin-left:15px;
+}
+
+.PHRVBHWD
+{
+	font-weight:bold;
+	color:blue;
+}
+
+.PIC
+{
+	display:none;
+}
+
+.PICCAL
+{
+	display:none;
+}
+
+.PLURALFORM
+{
+	font-weight:bold;
+}
+
+.POS
+{
+	font-style:italic;
+}
+
+.PRESPART
+{
+	font-weight:bold;
+}
+
+.PRESPARTX
+{
+	font-weight:bold;
+}
+
+.PRON
+{
+}
+
+.PronCodes
+{
+	/*font-family: "Lucida Sans Unicode", "Lucida Grande";*/
+	font-size:90%;
+}
+
+.PROPFORM
+{
+	font-weight:bold;
+	color:blue;
+}
+
+.PROPFORMPREP
+{
+	font-weight:bold;
+	color:blue;
+}
+
+.PTandPP
+{
+	font-weight:bold;
+}
+
+.PTandPPX
+{
+	font-weight:bold;
+}
+
+.REFHOMNUM
+{
+    vertical-align : super;
+	font-size:60%;
+}
+
+.REFHWD
+{
+	font-style:normal;
+	font-variant:small-caps;
+}
+
+.REFLEX
+{
+	font-weight:bold;
+}
+
+.REFSENSENUM
+{
+}
+
+.REGISTERLAB
+{
+	font-style:italic;
+	color:purple;
+	font-weight:normal;
+}
+
+.RELATEDWD
+{
+	font-weight:bold;
+}
+
+.RunOn
+{
+	display:block;
+}
+
+.SEM
+{
+	display:none;
+}
+
+.Sense
+{
+	display:block;
+	margin-left:1px;
+	margin-top:5px;
+}
+
+.Sense_newline
+{
+	display:block;
+}
+
+.SIGNPOST
+{
+	background-color:blue;
+	color:white;
+	font-weight:bold;
+	font-variant:small-caps;
+}
+
+.SpokenSect
+{
+}
+
+.STRONG
+{
+    /*font-family : "Verdana";*/
+	font-style:italic;
+}
+
+.Subsense
+{
+	display:block;
+}
+.Subsense span.sensenum{
+	margin-left:0px;	
+}
+
+.SUFFIX
+{
+}
+
+.SUPERL
+{
+	font-weight:bold;
+}
+
+.SYN
+{
+	font-weight:bold;
+}
+
+.T3PERSSING
+{
+	font-weight:bold;
+}
+
+.T3PERSSINGX
+{
+	font-weight:bold;
+}
+
+.Tail
+{
+	display:block;
+	margin-left:0px;
+}
+
+.UNCLASSIFIED
+{
+	font-weight:bold;
+}
+
+.USAGE
+{
+	display:none;
+}
+
+.Variant
+{
+}
+
+.span
+{
+	font-style:normal;
+	font-weight:normal;
+	font-variant:normal;
+	/*font-family:"Verdana"; */
+}
+
+.FREQ span
+{
+	background-color:white;
+}
+
+.AC span
+{
+	background-color:white;
+}
+
+.EntryAsset span.neutral
+{
+	text-decoration:none;
+}
+
+span.italic
+{
+	font-style:italic;
+	font-weight:normal;
+	/*font-family:Times New roman; */
+}
+
+span.warning{
+	color:magenta;
+	font-weight:bold;
+}
+span.infllab
+{
+	font-style:italic;
+	font-weight:normal;
+	/*font-family:Times New roman; */
+}
+
+span.sensenum
+{
+	font-style:normal;
+	font-weight:bold;
+	margin-right:8px;
+	margin-left:0px;
+	color:blue;
+}
+
+span.synopp
+{
+	font-style:normal;
+	font-weight:bold;
+	color:darkblue;
+}
+
+.F2NBox, .GramBox{
+	clear:both;
+	display:block;
+	border-style:solid;
+	border-width:1px;
+	border-color:blue;
+	padding:5px; 
+	margin-bottom:5px;
+	margin-right:15px;
+	margin-top:5px;
+}
+
+.F2NBox span.heading{
+	display:block;
+	font-weight:bold;
+	font-size:120%;
+	color:blue;
+	font-variant:small-caps;
+}
+
+.GramBox span.heading{
+	display:block;
+	font-weight:bold;
+	font-size:120%;
+	color:blue;
+	font-variant:small-caps;
+}
+
+.ThesBox{
+	clear:both;
+	display:block;
+	border-style:solid;
+	border-width:1px;
+	border-color:#642C91;
+	margin-right:0px;
+	margin-bottom:8px;
+	margin-top:8px;
+}
+
+.ThesBox span.heading{
+	display:block;
+	font-weight:bold;
+	font-size:120%;
+	color:white;
+	background-color:#A185BD;
+/*	background-color:#642C91; */
+}
+
+.ThesBox span.heading:before{	background-color:#A185BD;
+}
+
+.ThesBox .SECHEADING:before{
+	background-color:#A185BD;
+}
+
+.ThesBox .SECHEADING{
+	display:block;
+	font-weight:bold;
+	color:white;
+	background-color:#A185BD;
+	font-variant:small-caps;
+}
+
+.ThesColloBox, .ErrorBox{
+	display:block;
+	margin-left:0px;
+	margin-right:0px;	
+}
+.THHEADING{
+	display:block;
+	background-color:#A185BD;
+	color:white;
+	font-style:italic;
+	font-weight:bold;
+	font-size:80%;
+}
+
+.ColloBox{
+	clear:both;
+	display:block;
+	border-style:solid;
+	border-width:1px;
+	border-color:#1C3E94;
+	margin-right:0px;
+            margin-left:0px;
+	margin-bottom:8px;
+	margin-top:8px;
+}
+
+.ColloBox span.heading{
+	display:block;
+	font-weight:bold;
+	font-size:120%;
+	color:white;
+	background-color:#1C3E94;
+}
+
+.ColloBox span.heading:before{
+	background-color:#1C3E94;
+}
+/*
+.ColloBox .SECHEADING:before{	background-color:#8286BF;
+	background-color:#1C3E94;
+}
+*/
+.COHEADING{
+	display:block;
+	background-color:#8286BF;
+	color:white;
+	font-weight:bold;
+	font-style:italic;
+	font-size:80%;
+}
+
+.ColloBox .SECHEADING{
+	display:block;
+	font-weight:bold;
+	color:white;
+	background-color:#8286BF;	font-variant:small-caps;
+}
+.Collocate{
+            margin-left:5px;
+            margin-right:5px;
+}
+.Collocate_newline, .Exponent{
+	display:block;
+	margin-top:5px;
+}
+
+.Collocate_inline{
+	display:inline;
+}
+
+.Collocate_supp, .Exponent_supp{
+	display:none;
+}
+
+.EXPL{
+	display:block;
+}
+
+.COLLOC{
+	font-weight:bold;
+}
+
+.COLLOC_supp{
+	display:none;
+}
+
+.EXP{
+	font-weight:bold;
+}
+
+.EXP_supp{
+	display:none;
+}
+
+.EXPR{
+	font-weight:bold;
+}
+
+.COLLOC_key{
+	color:blue;
+}
+
+span.keycollo{
+	font-weight:bold;
+	color:blue;
+}
+
+.THESPROPFORM{
+	font-weight:bold;
+}
+
+.COLLEXA{
+	font-style:italic;
+}
+
+.COLLEXA_supp{
+	display: none;
+}
+
+.THESEXA{
+	font-style:italic;
+}
+
+.THESEXA_supp{
+	display: none;
+}
+
+.LearnerItem{
+	display:block;
+}
+
+.GOODCOLLO{
+	font-style:italic;
+	font-weight:bold;
+}
+
+.BADCOLLO{
+	font-style:italic;
+}
+
+.DEFBOLD{
+	font-weight:bold;
+}
+
+.SE_EntryAssets[type='sidepanel']{
+	display:none;
+}
+
+.SE_EntryAssets[type='inline']{
+	display:block;
+}
+
+.INFLX{
+	display:none;
+}
+
+.Section{
+	display:block;
+	margin-left:0px;
+	margin-right:0px;
+	margin-bottom:5px;
+}
+
+.Entry .Ref{
+	text-decoration:none;
+}
+
+/*menus css*/
+.Menu{
+	/*font-family:"Verdana";*/
+	clear:both;
+	display:block;
+	border-style:solid;
+	border-width:1px;
+	border-color:blue;
+	padding:5px; 
+	margin-bottom:5px;
+	margin-right:15px;
+	margin-top:5px;
+}
+
+.Menu .Link{
+	display:block;
+	margin-left:0px;
+	/*margin-bottom:3px;*/
+	margin-bottom:0px;
+	margin-top:0px;
+}
+
+.Menu .Ref{
+	color:blue;
+	background-color:lightblue;
+	font-weight:bold;
+	text-decoration:none;
+}
+
+.Menu .Phrvbs .Link{
+	font-weight:bold;
+}
+
+.Menu .Phrvbs{
+	display:block;
+/*	margin-left:10px;*/
+}
+
+.Menu .Phrvbs:before{
+	content:"Phrasal verbs";
+	font-weight:bold;
+	font-variant:small-caps;
+}
+
+.Menu .menu-head{
+	display:none;
+	margin-top:5px;
+	margin-bottom:5px;
+}
+
+.Menu .hwd{
+	font-weight:bold;
+	font-size:110%;
+	color:blue;
+}
+
+.Menu .hom{
+   vertical-align : super;
+	font-weight:bold;
+	font-size:90%;
+	color:blue;
+}
+/*
+.Menu .pos:before{
+*/
+.Menu .pos{
+	font-style:italic;
+	font-size:90%;
+	font-weight:normal;
+}
+
+.Menu span.sensenum{
+	font-weight:bold;
+	color:blue;
+	margin-left:0px;
+	font-size:90%;
+}
+
+.Menu .SIGNPOST{
+	/*font-variant:small-caps;*/
+}
+
+.Menu .LEXUNIT{
+	font-size:90%;
+}
+
+/*Etymology*/
+
+.etymology .CENTURY
+{
+}
+
+.etymology .CROSSREF
+{
+}
+
+.etymology
+{
+	clear:both;
+	display:block;
+	border-style:solid;
+	border-width:1px;
+	border-color:red;
+	padding:5px; 
+	margin-bottom:5px;
+	margin-right:15px;
+	margin-top:5px;
+	display:block;
+	/*font-family:verdana;*/
+}
+
+.etymology .HEAD
+{
+	display:block;
+}
+
+.etymology .HOMNUM
+{
+	vertical-align:super;
+	font-weight:bold;
+	color:blue;
+	font-size:80%;
+}
+
+.etymology .HWD
+{
+	font-size:110%;
+	font-weight:normal;
+	color:blue;
+}
+
+.etymology .LANG
+{
+}
+
+.etymology .ORIGIN
+{
+	color:green;
+	font-style:italic;
+}
+
+.etymology .REFHOM
+{
+	vertical-align:super;
+}
+
+.etymology .REFHWD
+{
+	font-variant: small-caps;
+}
+
+.etymology .REFSENSE
+{
+}
+
+.etymology .SENSE
+{
+	display:block;
+	margin-top:7px;
+}
+
+.etymology .TRAN
+{
+}
+
+.etymology .Z
+{
+}
+
+.etymology span.lead{
+	color:black;
+	font-style:normal;
+	font-weight:bold;
+}
+
+.etymology span.num{
+	display:block;
+}
+
+.Ref{
+	text-decoration:none;
+}
+
+
+/*Verb Form*/
+.VF{
+	display:block;
+	margin-left:4px;
+	text-decoration:none;
+	color:blue;
+	font-weight:bold;
+}
+.Verb Table{
+	width:300px
+	border-width: 2px;
+	border-collapse: collapse;
+	border-color:#FFFFA0;
+}
+
+.Verb td{
+	border-style: outset;
+	border-style:solid;
+	border-width: 2px;
+	border-color:#FFFFA0;
+	text-align:left;
+	vertical-align: middle;
+}
+
+.Verb td.COLUMN1{
+	font-weight:bold;
+}
+
+.Verb{
+	/*font-family:verdana;	*/
+}
+
+.Verb .BRVAR{
+	color:blue;
+	font-weight:bold;	
+}
+
+.Verb .USVAR{
+	color:blue;
+	font-weight:bold;	
+}
+
+.Verb .BR_US{
+	text-decoration:none;
+	color:blue;
+	font-weight:bold;	
+}
+
+.Verb .FORM{
+	font-weight:bold;	
+	display:block;
+	margin-top:10px;
+	padding:5px;
+	display:block;
+	background-color:#FFFFA0;
+}
+
+.Verb .HWD{
+	font-weight:bold;	
+	display:block;
+	margin-top:10px;
+	padding:5px;
+	display:block;
+	background-color:#FFFFA0;
+}
+
+.Verb .FORM{
+	font-weight:bold;	
+	display:block;
+}
+
+.Verb .AUX{
+	font-weight:bold;	
+}
+.Verb .tense{
+	font-weight:bold;	
+}
+
+.Verb .geo
+{
+	color:black;
+	font-style:italic;
+}
+
+/*extra examples*/
+.EXAMP{
+	display:block;
+	margin-left:4px;
+	text-decoration:none;
+	color:#74B7D9;
+	font-weight:bold;
+}
+
+.examples{
+	display:block;
+	margin-top:5px;
+	/*font-family:Verdana;*/
+	margin-left:5px;
+	margin-right:5px;
+}
+
+.examples .exa-head{
+	display:none;
+}
+.examples .exa
+{
+	font-style:italic;
+	display:block;
+	margin-top:5px;
+}
+
+.examples span.exabullet{
+	color:red;
+
+}
+
+/*word sets*/
+.WSETS{
+	display:inline;
+	margin-left:4px;
+	text-decoration:none;
+	color:blue;
+}
+.WSETSC{
+	display:inline;
+	margin-left:4px;
+	text-decoration:none;
+	color:blue;
+	font-weight:bold;
+}
+.category
+{
+	display:block;
+	margin-left:5px;
+	margin-right:5px;
+	margin-bottom:10px;
+	/*font-family:"Verdana";*/
+}
+
+.category .hwd{
+	display:inline;
+}
+	
+.category .name{
+	font-weight:bold;
+	font-size:110%;
+	color:blue;
+}
+
+.category .number{
+	display:none;
+}
+
+.category .Ref
+{
+	display:block;
+	margin-bottom:5px;
+	text-decoration:none;
+}
+
+.category .hwd
+{
+	font-weight:bold;
+	margin-left:5px;
+}
+
+
+.category .pos
+{
+	font-style:italic;
+	margin-left:5px;
+}
+
+/*word family*/
+.WFAM{
+	display:block;
+	margin-left:4px;
+	text-decoration:none;
+	color:blue;
+	font-weight:bold;
+}
+.wf
+{
+	/*font-family:verdana;*/
+}
+
+.wf .w
+{
+	font-weight:bold;
+	color:blue;
+	display:block;
+}
+
+.wf .opp
+{
+	color:red;
+}
+
+.wf .pos
+{
+	font-weight:bold;
+	font-style:italic;
+}
+
+.wf .group{
+	display:block;
+	margin-bottom:10px;
+}
+
+.wf .Ref{
+	text-decoration:none;
+}
+
+/*Collocation*/
+.COLCATION{
+	display:block;
+	margin-left:4px;
+	text-decoration:none;
+	color:#DB9F3F;
+	font-weight:bold;
+}
+
+.COLLOsection{
+	display: block;
+	margin-bottom: 15px;
+/*	margin-top:-10px;*/
+}
+
+.COLLOsection .coll-head{
+/*	display:block;*/
+}
+
+.COLLOsection .coll-body{
+	display:block;
+}
+
+.COLLOsection .Section{
+	display:block;
+	margin-bottom:16px;
+	margin-left:0px;
+}
+
+.COLLOsection .Collocate{
+	display:block;
+	margin-top:8px;
+}
+
+.COLLOsection .COLLGLOSS{
+	display:block;
+}
+
+.COLLOsection .COLLOC
+{
+	font-weight:bold;
+}
+
+.COLLOsection .COLLEXA{
+	font-style:italic;
+	display:block;
+}
+
+.COLLOsection span.exabullet{
+	color:#db9f3f;
+	font-weight:bold;
+}
+
+.COLLOsection span.heading{
+	font-weight:bold;
+}
+
+.COLLOsection span.hwd{
+	font-style:italic;
+}
+
+.COLLOsection .HEADING{
+	display:none;
+}
+
+.COLLOsection .SECHEADING, span.subheading{
+	display:block;
+	font-weight:bold;
+	color:white;
+	background-color:#db9f3f;
+	padding:4px;
+	padding-left:2px;
+	margin-top:0px;
+	margin-left:0px;
+	margin-right:0px;
+	font-variant:small-caps;
+}
+
+.COLLOsection .GEO, .COLLOsection .REGISTERLAB{
+	font-style:italic;
+	color:purple;
+}
+
+.COLLOsection .LEXVAR{
+	font-weight:bold;
+}
+
+.Ref{
+	text-decoration:none;
+}
+
+
+/*Thesaurus*/
+.ACTV{
+	display:inline;
+	margin-left:4px;
+	text-decoration:none;
+	color:#AE8BBF;
+}
+.ACTVC{
+	display:inline;
+	margin-left:4px;
+	text-decoration:none;
+	color:#AE8BBF;
+	font-weight:bold;
+}
+.THESR{
+	display:inline;
+	margin-left:4px;
+	text-decoration:none;
+	color:#AE8BBF;
+}
+.THESRC{
+	display:inline;
+	margin-left:4px;
+	text-decoration:none;
+	color:#AE8BBF;
+	font-weight:bold;
+}
+
+.THESsection .exp-body{
+	display:block;
+}
+
+.THESsection .LABEL, span.geo
+{
+	font-style:italic;
+	color:purple;
+}
+
+.THESsection .GLOSS
+{
+	font-weight:normal;
+	font-style:normal;
+    /*font-family : "Verdana";*/
+	color:black;
+}
+
+.THESsection .LEXVAR
+{
+	font-weight:bold;
+}
+
+.THESsection .LINKWORD
+{
+	font-style:italic;
+}
+
+
+.THESsection .POS
+{
+	font-style:italic;
+}
+
+.THESsection .PROPFORM
+{
+	font-weight:bold;
+}
+
+.THESsection .PROPFORMPREP
+{
+	font-weight:bold;
+}
+
+.THESsection .REGISTERLAB
+{
+	font-style:italic;
+}
+
+.THESsection span.neutral
+{
+	font-style:normal;
+	font-weight:normal;
+	font-variant:normal;
+}
+
+.THESsection .HEADING, span.heading{
+	display:block;
+	font-weight:bold;
+	font-size:120%;
+}
+
+.THESsection .SECHEADING, span.subheading{
+	display:block;
+	font-weight:bold;
+	color:white;
+	background-color:#A586BB;
+	padding:4px;
+	padding-left:10px;
+	font-variant:small-caps;
+	margin-left:-5px;
+	margin-right:0px;
+	margin-top:-10px;
+}
+
+.THESsection .Exponent{
+	display:block;
+	margin-top:8px;
+}
+
+.THESsection .EXP{
+	font-weight:bold;
+}
+
+.THESsection .THESPROPFORM{
+	font-weight:bold;
+}
+
+.THESsection .THESPROPFORM.newline{
+	font-weight:bold;
+	display:block;
+}
+
+.THESsection .THESEXA{
+	font-style:italic;
+	display:block;
+}
+
+.THESsection .DEFBOLD{
+	font-weight:bold;
+}
+
+.THESsection{
+	display:block;
+/*	margin-top:-10px;*/
+	margin-bottom:18px;
+	margin-left:5px;
+}
+
+.THESsection span.exabullet{
+	color:#6B2C9F;
+	font-weight:bold;
+}
+
+
+.THESsection .Ref{
+	text-decoration:none;
+}
+
+
+/*Phrases*/
+.PHR{	
+	display:block;
+	margin-left:4px;
+	text-decoration:none;
+	color:#A9B47B;
+	font-weight:bold;
+}
+.PHRsection .phrase-body{
+	display:block;
+	/*font-family:Verdana;*/
+}
+
+.PHRsection .phrase{
+	display:block;
+	margin-top:8px;
+	margin-left:5px;
+	margin-right:5px;
+}
+
+.PHRsection .phrase-head{
+	font-weight:bold;
+	/*font-family:Verdana;*/
+}
+
+.PHRsection .exa
+{
+	font-style:italic;
+	display:block;
+	margin-top:5px;
+}
+
+.PHRsection .Ref{
+	text-decoration:none;
+}
+
+
+
+.snd_sfx{
+	font-size:300%;
+	font-style:normal;
+	text-decoration:none;
+	font-weight:bold;
+	color:#29AAE1;
+}
+.snd_uk{
+	font-size:300%;
+	font-style:normal;
+	text-decoration:none;
+	font-weight:bold;
+	color:#EC1C24;
+}
+.snd_us{
+	font-size:300%;
+	font-style:normal;
+	text-decoration:none;
+	font-weight:bold;
+	color:#29AAE1;
+}
+
+
+
+
+
+
+
+

@@ -28,10 +28,11 @@ require(['jquery', 'mdict-parser', 'mdict-renderer', 'selectize'], function($, M
           var mdict = MRenderer(resources);
           
           function doSearch(phrase, offset) {
-              var result = mdict.lookup(phrase, offset).then(function($content) {
+              console.log(phrase + '');
+              mdict.lookup(phrase, offset).then(function($content) {
                 $('#definition').empty().append($content.contents());
+                console.log('--');
               });
-              $('#definition').html(result);
           }
           
 //          mdict.search('mind').then(function(list) {
@@ -71,15 +72,14 @@ require(['jquery', 'mdict-parser', 'mdict-renderer', 'selectize'], function($, M
               allowEmptyOption: true,
               addPrecedence: 'New...',
               load: function(query, callback) {
-                console.log(this);
                 var self = this;
                 if (!query.length) {
                   this.clearOptions();
                   this.refreshOptions();
                   return;
                 };
-                mdict.search(query).then(function(list) { 
-                  console.log(list);
+                mdict.search(query).then(function(list) {
+                  // TODO: filter candidate keyword starting with "_"
                   var i = 0;
                   list = list.map(function(v) {
                     i++;
