@@ -3644,19 +3644,25 @@
 		this.onKeyDown = (function() {
 			var original = self.onKeyDown;
 			return function(e) {
+                console.log(e);
 				var index, option;
 				if (e.keyCode === KEY_BACKSPACE && this.$control_input.val() === '' && !this.$activeItems.length) {
 					index = this.caretPos - 1;
 					if (index >= 0 && index < this.items.length) {
 						option = this.options[this.items[index]];
 						if (this.deleteSelection(e)) {
-							this.setTextboxValue(options.text.apply(this, [option]));
-							this.refreshOptions(true);
-						}
+                            var txt = options.text.apply(this, [option]);                          
+                            if (txt.length > 0) {
+                              txt = txt.substring(0, txt.length - 1);
+                            } 
+                            this.setTextboxValue(txt);
+                            this.refreshOptions(true);
+                            this.onSearchChange(txt);
+                        }
 						e.preventDefault();
 						return;
 					}
-				}
+                }
 				return original.apply(this, arguments);
 			};
 		})();
