@@ -776,11 +776,11 @@
           }
         } else {
           // scan mode
-          return findCandidates(word).then(function(candidates) {
+          return seekVanguard(word).spread(function(kdx, idx, list) {
             var f = offset !== UNDEFINED 
                       ? function(v) { return v.offset === offset; }
                       : function(v) { return v.toLowerCase() === word; }
-            return harvest(candidates.filter(f).map(findWord));
+            return harvest(list.filter(f).map(findWord));
           });
         }
       },
@@ -798,8 +798,8 @@
           }
         } else {
           // scan mode
-          return findCandidates(word).then(function(candidates) {
-            return candidates.filter(function(one) {
+          return seekVanguard(word).spread(function(kdx, idx, list) {
+            return list.slice(idx).filter(function(one) {
               return one.toLowerCase() === word;
             });
           }).then(function(candidates) {
