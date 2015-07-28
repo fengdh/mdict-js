@@ -121,7 +121,7 @@
     var p = new Promise(function(_resolve) {
       var reader = new FileReader();
       reader.onload = function() { _resolve(reader.result); }
-      console.log('slice: ', offset, ' + ', len);
+//      console.log('slice: ', offset, ' + ', len);
       reader.readAsArrayBuffer(file.slice(offset, offset + len)); // It's an asynchronous call!
     });
 
@@ -761,7 +761,6 @@
        *
        */
       mdx: function(phrase, offset) {
-        console.log('phrase = ' + phrase);
         var word = phrase.trim().toLowerCase();
         if (KEY_TABLE.isReady()) {
           // express mode
@@ -810,37 +809,13 @@
       }
     };
     
-    var MAX_CANDIDATES = 64, _last_keys;
+    var MAX_CANDIDATES = 64, _cached_keys;
     
     // TODO: max count
     // TODO: exact match
     // TODO: extend to neighboring block before/after
-    function findCandidates(phrase) {
-        phrase = _adaptKey(phrase);
-        var kdx = reduce(KEY_INDEX, phrase), 
-            index = kdx.index - 1, prev;
-      
-        // look back to search for the first record block containing the specified phrase
-        if (phrase <= _adaptKey(kdx.last_word)) {
-          while (prev = KEY_INDEX[index]) {
-            if (_adaptKey(prev.last_word) !== _adaptKey(kdx.last_word)) {
-              break;
-            }
-            kdx = prev;
-            index--;
-          } 
-        }
-      
-        return loadKeys(kdx).then(function(list) {
-          var idx = shrink(list, phrase);
-          
-          while (true && idx > 0) {
-            if (_adaptKey(list[--idx]) !== phrase) {
-              idx++;
-              break;
-            }
-          }
-          
+    function findCandidates(phrase, filter) {
+      return seekVanguard(phrase).spread(function(kdx, idx, list) {
           var candidates = list.slice(idx, idx + MAX_CANDIDATES);
 
           var shortage = MAX_CANDIDATES - candidates.length;
@@ -855,9 +830,37 @@
     };
     LOOKUP.mdx.search = findCandidates;
     
+    function seekVanguard(phrase) {
+      phrase = _adaptKey(phrase);
+      var kdx = reduce(KEY_INDEX, phrase),
+          index = kdx.index - 1,
+          prev;
+
+      // look back to search for the first record block containing the specified phrase
+      if (phrase <= _adaptKey(kdx.last_word)) {
+        while (prev = KEY_INDEX[index]) {
+          if (_adaptKey(prev.last_word) !== _adaptKey(kdx.last_word)) {
+            break;
+          }
+          kdx = prev;
+          index--;
+        }
+      }
+
+      return loadKeys(kdx).then(function (list) {
+        var idx = shrink(list, phrase);
+        while (idx > 0) {
+          if (_adaptKey(list[--idx]) !== phrase) {
+            idx++;
+            break;
+          }
+        }        
+        return [kdx, idx, list]; });
+    }
+    
     function loadKeys(kdx) {
-      if (_last_keys && _last_keys.pilot === kdx.first_word) {
-        return resolve(_last_keys.list);
+      if (_cached_keys && _cached_keys.pilot === kdx.first_word) {
+        return resolve(_cached_keys.list);
       } else {
         return _slice(kdx.offset, kdx.comp_size).then(function(input) {
           var scanner = Scanner(input).readBlock(kdx.comp_size, kdx.decomp_size),
@@ -866,11 +869,8 @@
             var offset = scanner.readNum();
             list[i] = new Object(scanner.readText());
             list[i].offset = offset;
-            if (i > 1) {
-              list[i-1].size = offset - list[i-1].offset;
-            }
           }
-          _last_keys = {list: list, pilot: kdx.first_word};
+          _cached_keys = {list: list, pilot: kdx.first_word};
           return list;
         });
       }
@@ -898,20 +898,9 @@
         len = len >> 1;
         var key = _adaptKey(arr[len]);
         if (phrase < key) {
-          // Special Case: key ending with "-"
-          // mdict key sort bug? 
-          // i.e. "mini-" prios "mini" in some dictionary
-          if (key[key.length - 1] === '-' && arr[len + 1] === phrase) {
-            return arr.pos + len + 1;
-          }
           sub = arr.slice(0, len);
           sub.pos = arr.pos;
         } else {
-          // Special Case: key ending with whitespace
-          key = arr[len];
-          if (key[key.length - 1] === ' ' && arr[len - 1] === phrase) {
-            return arr.pos + len - 1;
-          }
           sub = arr.slice(len);
           sub.pos = (arr.pos || 0) + len;
         }

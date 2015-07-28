@@ -47,6 +47,7 @@
       resources['mdd'].then(function (lookup) {
         lookup($img.attr('src')).then(function (data) {
           var blob = new Blob([data], {type: 'image'});
+          blob.name = "MBC";
           var url = URL.createObjectURL(blob);
           // TODO: need to call window.URL.revokeObjectURL() to release memory
           //       or use LRU cache
@@ -68,6 +69,7 @@
           .then(function (lookup) {
             return lookup(word, offset);
           }).then(function (definitions) {
+            console.log('lookup done!');
             var html = definitions.reduce(function(prev, txt) { 
               return prev + '<p></p>' + txt;
             }, '<p>' + definitions.length + ' entry(ies) </p>');

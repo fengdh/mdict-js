@@ -58,19 +58,22 @@ require(['jquery', 'mdict-parser', 'mdict-renderer', 'selectize'], function($, M
             $('#word').selectize({
               plugins: ['restore_on_backspace'],
               maxItems: 1,
-              valueField: 'value',
+              valueField: 'word',
               labelField: 'word',
               searchField: 'word',
-              options: [],
               delimiter: '~~',
               create: function(v, callback) {
-                return ({word: v, key: adaptKey(v)});
+                return callback({word: v, key: adaptKey(v)});
               },
               createOnBlur: true,
-              persist: true,
               closeAfterSelect: true,
               allowEmptyOption: true,
-              addPrecedence: 'New...',
+              score: function(search) {
+						var score = this.getScoreFunction(search);
+						return function(item) {
+							return 1;
+						};
+					},
               load: function(query, callback) {
                 var self = this;
                 if (!query.length) {
@@ -79,11 +82,10 @@ require(['jquery', 'mdict-parser', 'mdict-renderer', 'selectize'], function($, M
                   return;
                 };
                 mdict.search(query).then(function(list) {
+                  console.log(list.join(', '));
                   // TODO: filter candidate keyword starting with "_"
-                  var i = 0;
                   list = list.map(function(v) {
-                    i++;
-                    return {word: v, key: adaptKey(v), value: [v, v.offset]};
+                    return {word: v, key: adaptKey(v)};
                   });
                   self.clearOptions();
                   callback(list);
