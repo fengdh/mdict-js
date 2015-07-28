@@ -798,8 +798,8 @@
           }
         } else {
           // scan mode
-          return findCandidates(word).then(function(candidates) {
-            return candidates.filter(function(one) {
+          return seekVanguard(word).then(function(kdx, idx, list) {
+            return list.slice(idx).filter(function(one) {
               return one.toLowerCase() === word;
             });
           }).then(function(candidates) {
