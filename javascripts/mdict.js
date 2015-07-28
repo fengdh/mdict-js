@@ -58,12 +58,12 @@ require(['jquery', 'mdict-parser', 'mdict-renderer', 'selectize'], function($, M
             $('#word').selectize({
               plugins: ['restore_on_backspace'],
               maxItems: 1,
-              valueField: 'word',
+              valueField: 'value',
               labelField: 'word',
               searchField: 'word',
               delimiter: '~~',
               create: function(v, callback) {
-                return callback({word: v, key: adaptKey(v)});
+                return callback({word: v, key: adaptKey(v), value: v});
               },
               createOnBlur: true,
               closeAfterSelect: true,
@@ -85,7 +85,7 @@ require(['jquery', 'mdict-parser', 'mdict-renderer', 'selectize'], function($, M
                   console.log(list.join(', '));
                   // TODO: filter candidate keyword starting with "_"
                   list = list.map(function(v) {
-                    return {word: v, key: adaptKey(v)};
+                    return {word: v, key: adaptKey(v), value: v.offset};
                   });
                   self.clearOptions();
                   callback(list);
