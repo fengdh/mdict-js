@@ -785,6 +785,8 @@
         }
       },
       
+      // TODO: chain multiple mdd file
+      // TODO: cache key table and content of samll mdd file
       mdd: function(phrase) {
         var word = phrase.trim().toLowerCase();
         word = '\\' + word.replace(/(^[/\\])|([/]$)/, '');
