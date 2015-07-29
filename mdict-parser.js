@@ -776,15 +776,17 @@
           }
         } else {
           // scan mode
-          return findCandidates(word).then(function(candidates) {
+          return seekVanguard(word).spread(function(kdx, idx, list) {
             var f = offset !== UNDEFINED 
                       ? function(v) { return v.offset === offset; }
                       : function(v) { return v.toLowerCase() === word; }
-            return harvest(candidates.filter(f).map(findWord));
+            return harvest(list.filter(f).map(findWord));
           });
         }
       },
       
+      // TODO: chain multiple mdd file
+      // TODO: cache key table and content of samll mdd file
       mdd: function(phrase) {
         var word = phrase.trim().toLowerCase();
         word = '\\' + word.replace(/(^[/\\])|([/]$)/, '');
@@ -798,7 +800,7 @@
           }
         } else {
           // scan mode
-          return seekVanguard(word).then(function(kdx, idx, list) {
+          return seekVanguard(word).spread(function(kdx, idx, list) {
             return list.slice(idx).filter(function(one) {
               return one.toLowerCase() === word;
             });
