@@ -565,7 +565,7 @@
 
       attrs.Encrypted = parseInt(attrs.Encrypted, 10) || 0;
 
-      console.log('attrs: ', attrs);
+      console.log('dictionary attributes: ', attrs);
       config();
       return len + 4;
     }
@@ -750,26 +750,38 @@
                   .spread(function (blob) { return resolve(blob); });
     }
     
-
+    /**
+     *
+     */
+    function matchOffset(list, offset) {
+      return list.some(function(el) { return el.offset === offset ? list = [el] : false; }) ? list : [];
+    }
     
-    // TODO: search nearest in case of collision of hashcode
-    // TODO: chain multiple mdd lookup functions
     
     // Lookup functions
     var LOOKUP = {
       /**
        *
        */
-      mdx: function(phrase, offset) {
+      mdx: function(query) {
+        var offset = query.offset,
+            phrase = (typeof query === 'string' || query instanceof String) ? query : query.phrase;
+        
+        if (query.forKeys) {
+          return matchKeys(phrase, query.maxCount);
+        }
+        
         var word = phrase.trim().toLowerCase();
         if (KEY_TABLE.isReady()) {
           // express mode
+          // TODO: match keyword in case of collision of hashcode
           var infos = KEY_TABLE.find(word);
           if (infos) {
             if (offset !== UNDEFINED) {
-              infos = infos.filter(function(v) { return v.offset === offset;});
+              infos = matchOffset(infos, offset);
+            } else {
+              infos.sort(function(a, b) { return a.offset - b.offset; });
             }
-            // TODO: sort according to offset
             return harvest(infos.map(findWord));
           } else {
             return reject('*WORD NOT FOUND* ' + phrase);
@@ -777,14 +789,19 @@
         } else {
           // scan mode
           return seekVanguard(word).spread(function(kdx, idx, list) {
-            var f = offset !== UNDEFINED 
-                      ? function(v) { return v.offset === offset; }
-                      : function(v) { return v.toLowerCase() === word; }
-            return harvest(list.filter(f).map(findWord));
+            list = list.slice(idx);
+            if (offset !== UNDEFINED) {
+              list = matchOffset(list, offset);
+            } else {
+              list = list.filter(function(el) { return el.toLowerCase() === word; });
+            }
+            return harvest(list.map(findWord));
           });
         }
       },
       
+      // TODO: chain multiple mdd file
+      // TODO: cache key table and content of samll mdd file
       mdd: function(phrase) {
         var word = phrase.trim().toLowerCase();
         word = '\\' + word.replace(/(^[/\\])|([/]$)/, '');
@@ -809,35 +826,72 @@
       }
     };
     
-    var MAX_CANDIDATES = 64, _cached_keys;
+    var MAX_CANDIDATES = 256, _cached_keys;
     
     // TODO: max count
-    // TODO: exact match
-    // TODO: extend to neighboring block before/after
-    function findCandidates(phrase, filter) {
-      return seekVanguard(phrase).spread(function(kdx, idx, list) {
-          var candidates = list.slice(idx, idx + MAX_CANDIDATES);
-
-          var shortage = MAX_CANDIDATES - candidates.length;
-          if (shortage > 0 && (kdx = KEY_INDEX[kdx.index + 1]) !== UNDEFINED) {
-            return loadKeys(kdx).then(function(nextList) {
-              Array.prototype.push.apply(candidates, nextList.slice(0, shortage));
-              return candidates;
-            });
-          }
-          return candidates;
-        });
+    // TODO: cancel running of matchKeys()
+    function matchKeys(phrase, expectedSize) {
+      expectedSize = expectedSize || MAX_CANDIDATES;
+      var str = phrase.trim().toLowerCase(),
+          m = /([^*]+)[*]/.exec(str), 
+          word;
+      if (m) {
+        word = m[1];
+        var wildcard = new RegExp('^' + str.replace(/\*+/g, '.*').replace(/\?/g, '.') + '$');
+        var filter = phrase[phrase.length - 1] === ' ' 
+                        ? function (s) { return wildcard.test(s); }
+                        : function (s) { return wildcard.test(s) && !/ /.test(s); };
+      } else {
+        word = phrase.trim();
+      }
+      
+      return seekVanguard(word).spread(function(kdx, idx, list){
+        list = list.slice(idx);
+        if (filter) {
+          list = list.filter(filter);
+        }
+        return appendMore(word, list, KEY_INDEX[kdx.index + 1], expectedSize, filter);
+      });
     };
-    LOOKUP.mdx.search = findCandidates;
     
+    /**
+     * Append more to word list according to a filter or expected size.
+     */
+    function appendMore(word, list, nextKdx, expectedSize, filter) {
+      if (nextKdx) {
+          if (filter) {
+            if (nextKdx.first_word.substr(0, word.length) === word) {
+              return loadKeys(nextKdx).then(function(more) {
+                Array.prototype.push.apply(list, more.filter(filter));
+                return appendMore(word, list, KEY_INDEX[nextKdx.index + 1], expectedSize, filter);
+              });
+            }
+          } else {
+            var shortage = expectedSize - list.length;
+            if (shortage > 0) {
+              return loadKeys(nextKdx).then(function(more) {
+                Array.prototype.push.apply(list, more.slice(0, shortage));
+                return appendMore(word, list, KEY_INDEX[nextKdx.index + 1], expectedSize, filter);
+              });
+            } else {
+              return list.slice(0, expectedSize);
+            }
+          }
+      }
+      return list;
+    }
+    
+    
+    /**
+     * Search for the first keyword match given phrase.
+     */
     function seekVanguard(phrase) {
       phrase = _adaptKey(phrase);
-      var kdx = reduce(KEY_INDEX, phrase),
-          index = kdx.index - 1,
-          prev;
+      var kdx = reduce(KEY_INDEX, phrase);
 
-      // look back to search for the first record block containing the specified phrase
+      // look back for the first record block containing keyword for the specified phrase
       if (phrase <= _adaptKey(kdx.last_word)) {
+        var index = kdx.index - 1, prev;
         while (prev = KEY_INDEX[index]) {
           if (_adaptKey(prev.last_word) !== _adaptKey(kdx.last_word)) {
             break;
@@ -848,16 +902,21 @@
       }
 
       return loadKeys(kdx).then(function (list) {
-        var idx = shrink(list, phrase);
-        while (idx > 0) {
-          if (_adaptKey(list[--idx]) !== phrase) {
-            idx++;
-            break;
-          }
-        }        
-        return [kdx, idx, list]; });
+          var idx = shrink(list, phrase);
+          // look back for the first matched keyword position
+          while (idx > 0) {
+            if (_adaptKey(list[--idx]) !== phrase) {
+              idx++;
+              break;
+            }
+          }        
+          return [kdx, idx, list]; 
+        });
     }
     
+    /**
+     * Load keys for a keyword index object from mdx/mdd file.
+     */
     function loadKeys(kdx) {
       if (_cached_keys && _cached_keys.pilot === kdx.first_word) {
         return resolve(_cached_keys.list);
@@ -890,7 +949,6 @@
       }
     }
     
-    // TODO: lookback for possible same key
     // Reduce the array to index of an element which contains or is nearest one matching a given phrase.
     function shrink(arr, phrase) {
       var len = arr.length, sub;
@@ -910,7 +968,10 @@
       }
     }
     
+    // ------------------------------------------
     // start to load mdx/mdd file
+    // ------------------------------------------
+    console.log('start to load ' + file.name);
     var pos = 0;
 
     // read first 4 bytes to get header length
@@ -950,6 +1011,7 @@
         
         return [len, willLoadKeyTable];
       });
+      
     }).spread(function (len, willLoadKeyTable) { 
       return [
         willLoadKeyTable,
@@ -975,8 +1037,9 @@
     });
   };
   
-  
+  // -------------------------
   // END OF parse_mdict()
+  // -------------------------
   
   /**
    * Load a set of files which will be parsed as MDict dictionary & resource (mdx/mdd).
