@@ -64,10 +64,10 @@
     }    
     
     return {
-      lookup: function lookup(word, offset) {
+      lookup: function lookup(query) {
         return (resources['mdx'] || resources['mdd'])
           .then(function (lookup) {
-            return lookup(word, offset);
+            return lookup(query);
           }).then(function (definitions) {
             console.log('lookup done!');
             var html = definitions.reduce(function(prev, txt) { 
@@ -77,9 +77,9 @@
           });
       },
       
-      search: function (word) {
+      search: function (query) {
         return resources['mdx'].then(function(lookup) {
-          return lookup.search(word);
+          return lookup(query);
         });
       },
       
