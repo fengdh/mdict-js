@@ -58,6 +58,7 @@ require(['jquery', 'mdict-parser', 'mdict-renderer', 'selectize'], function($, M
             $('#word').selectize({
               plugins: ['restore_on_backspace'],
               maxItems: 1,
+              maxOptions: 1 << 20,
               valueField: 'value',
               labelField: 'word',
               searchField: 'word',
@@ -81,8 +82,9 @@ require(['jquery', 'mdict-parser', 'mdict-renderer', 'selectize'], function($, M
                   this.refreshOptions();
                   return;
                 };
-                mdict.search(query).then(function(list) {
-                  console.log(list.join(', '));
+                
+                mdict.search({phrase: query, forKeys: true, maxCount: 256}).then(function(list) {
+//                  console.log(list.join(', '));
                   // TODO: filter candidate keyword starting with "_"
                   list = list.map(function(v) {
                     return {word: v, key: adaptKey(v), value: v.offset};
@@ -113,6 +115,7 @@ require(['jquery', 'mdict-parser', 'mdict-renderer', 'selectize'], function($, M
       var href = $(this).attr('href');
       if (href && href.substring(0, 8) === 'entry://') {
         var word = href.substring(8);
+        // TODO: remove '#' to get jump target
         if (word.charAt(0) !== '#') {
           word = word.replace(/(^[/\\])|([/]$)/, '');
 

@@ -3644,7 +3644,6 @@
 		this.onKeyDown = (function() {
 			var original = self.onKeyDown;
 			return function(e) {
-                console.log(e);
 				var index, option;
 				if (e.keyCode === KEY_BACKSPACE && this.$control_input.val() === '' && !this.$activeItems.length) {
 					index = this.caretPos - 1;
