@@ -2,7 +2,7 @@
  * A basic html renderer companioned with mdict-render.js to retrieve word's definition from a MDict dictionary.
  * By Feng Dihai <fengdh@gmail.com>, 2015/07/01
  * 
- * To my wife, my kids and family.
+ * For my wife, my kids and family to whom I'm in love with life.
  *
  * This is free software released under terms of the MIT License.
  * You can get a copy on http://opensource.org/licenses/MIT.
