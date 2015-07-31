@@ -2,7 +2,7 @@
  * A basic html renderer companioned with mdict-render.js to retrieve word's definition from a MDict dictionary.
  * By Feng Dihai <fengdh@gmail.com>, 2015/07/01
  * 
- * To my wife, my kids and my family.
+ * To my wife, my kids and family.
  *
  * This is free software released under terms of the MIT License.
  * You can get a copy on http://opensource.org/licenses/MIT.
@@ -41,7 +41,7 @@
 
   return function createRenderer(resources) {
     
-    // TODO: LRU cache
+    // TODO: LRU cache: remove oldest one only after rendering.
     function replaceImage(index, img) {
       var $img = $(img);
       resources['mdd'].then(function (lookup) {
