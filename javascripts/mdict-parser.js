@@ -2,7 +2,7 @@
  * A pure JavaScript implemented parser for MDict dictionary file (mdx/mdd).
  * By Feng Dihai <fengdh@gmail.com>, 2015/07/01
  * 
- * For my wife, for my kids and family.
+ * For my wife, my kids and family.
  *
  * Based on:
  *  - An Analysis of MDX/MDD File Format by Xiaoqiang Wang (xwang)
@@ -110,6 +110,16 @@
   }
   
   /**
+   * For sliceThen(..).exec(proc, ..), mark what proc function returns is multiple values 
+   * to be used by further Promise#spread(..) call. 
+   */
+  function spreadus() {
+    var args = Array.prototype.slice.apply(arguments);
+    args._spreadus_ = true;
+    return args;
+  }
+  
+  /**
    * Slice part of a file/blob object, return a promise object which will resolve an ArrayBuffer to feed subsequent process.
    * The returned promise object is extened with exec(proc, args...) method which can be chained with further process.
    * @param file file or blob object
@@ -127,17 +137,19 @@
 
     /**
      * Call proc with specified arguments prepending with sliced file/blob data (ArrayBuffer) been read.
-     * To chain further process, return a promise object which will resovle [returned_result_from_proc, sliced_data].
-     * Use Promise#spread(..) to retrieve corresponding value.
+     * @param first argument is a function to be executed
+     * @param other optional arguments to be passed to function following auto supplied input array buffer
+     * @return a promise object which can be chained with further process through spread() method
      */
     p.exec = function(proc /*, args... */) {
       var args = Array.prototype.slice.call(arguments, 1);
       return p.then(function(data) {
           args.unshift(data);
-          return resolve([proc.apply(null, args), data]);
+          var ret = proc.apply(null, args);
+          return resolve(ret !== UNDEFINED && ret._spreadus_ ? ret : [ret]);
       });
     };
-
+        
     return p;
   }
   
@@ -567,7 +579,7 @@
 
       console.log('dictionary attributes: ', attrs);
       config();
-      return len + 4;
+      return spreadus(len + 4, input);
     }
 
     /**
@@ -623,7 +635,7 @@
         };
         offset += size;
       }
-      return keyword_index;
+      return spreadus(keyword_summary, keyword_index);
     }
 
     /**
@@ -826,7 +838,7 @@
       }
     };
     
-    var MAX_CANDIDATES = 256, _cached_keys;
+    var MAX_CANDIDATES = 256, _cached_keys, mutual_ticket = 0;
     
     // TODO: max count
     // TODO: cancel running of matchKeys()
@@ -850,28 +862,33 @@
         if (filter) {
           list = list.filter(filter);
         }
-        return appendMore(word, list, KEY_INDEX[kdx.index + 1], expectedSize, filter);
+        return appendMore(word, list, KEY_INDEX[kdx.index + 1], expectedSize, filter, ++mutual_ticket);
       });
     };
     
+    // TODO: have to restrict max count to improve response
     /**
      * Append more to word list according to a filter or expected size.
      */
-    function appendMore(word, list, nextKdx, expectedSize, filter) {
+    function appendMore(word, list, nextKdx, expectedSize, filter, ticket) {
+      if (ticket !== mutual_ticket) {
+        throw 'force terminated';
+      }
       if (nextKdx) {
           if (filter) {
             if (nextKdx.first_word.substr(0, word.length) === word) {
-              return loadKeys(nextKdx).then(function(more) {
+              return loadKeys(nextKdx).delay(30).then(function(more) {
+                console.log(nextKdx);
                 Array.prototype.push.apply(list, more.filter(filter));
-                return appendMore(word, list, KEY_INDEX[nextKdx.index + 1], expectedSize, filter);
+                return appendMore(word, list, KEY_INDEX[nextKdx.index + 1], expectedSize, filter, ticket);
               });
             }
           } else {
             var shortage = expectedSize - list.length;
             if (shortage > 0) {
-              return loadKeys(nextKdx).then(function(more) {
+              return loadKeys(nextKdx).delay(30).then(function(more) {
                 Array.prototype.push.apply(list, more.slice(0, shortage));
-                return appendMore(word, list, KEY_INDEX[nextKdx.index + 1], expectedSize, filter);
+                return appendMore(word, list, KEY_INDEX[nextKdx.index + 1], expectedSize, filter, ticket);
               });
             } else {
               return list.slice(0, expectedSize);
@@ -972,65 +989,56 @@
     // start to load mdx/mdd file
     // ------------------------------------------
     console.log('start to load ' + file.name);
+    
     var pos = 0;
 
     // read first 4 bytes to get header length
     return _slice(pos, 4).exec(read_file_head).spread(function(len) {
-      pos += 4;
+      pos += 4;                                   // start of header string in header section
       // then parse dictionary attributes in remained header section (header_str:len + checksum:4 bytes),
       // also load next first 44 bytes of keyword section
       return _slice(pos, len + 48).exec(read_header_sect, len);
 
     }).spread(function(header_remain_len, input) {
-        pos += header_remain_len;  // start of keyword section
-        return [read_keyword_summary(input, header_remain_len)];
+      pos += header_remain_len;                   // start of keyword section
+      return read_keyword_summary(input, header_remain_len);
 
-    }).spread(function(keyword_summary) {
-      console.log(keyword_summary);
-      pos += keyword_summary.len;    // start of key index
-      var len = keyword_summary.key_index_comp_len + keyword_summary.key_blocks_len; 
-                                     // total length of key index and key block
-
+    }).then(function(keyword_summary) {           console.log(keyword_summary);
+      pos += keyword_summary.len;                 // start of key index in keyword section
       // read keyword index, and then read all key blocks
-      return _slice(pos, len).exec(read_keyword_index, keyword_summary, pos).spread(function (keyword_index, input) {
-        KEY_INDEX = keyword_index;
-        
-        // delay to load key table
-        function willLoadKeyTable() {
-          var scanner = Scanner(input);
-          scanner.forward(keyword_summary.key_index_comp_len);
+      return _slice(pos, keyword_summary.key_index_comp_len).exec(read_keyword_index, keyword_summary, pos);
 
-          KEY_TABLE.alloc(keyword_summary.num_entries);
-          for (var i = 0, size = keyword_index.length; i < size; i++) {
-            read_key_block(scanner, keyword_index[i]);
-          }
+    }).spread(function (keyword_summary, keyword_index) {
+      pos += keyword_summary.key_index_comp_len;  // start of keyword block in keyword section
+      KEY_INDEX = keyword_index;
 
-          KEY_TABLE.sort();
-          console.log('KEY_TABLE loaded.');
-        };
-        
-        return [len, willLoadKeyTable];
-      });
-      
-    }).spread(function (len, willLoadKeyTable) { 
-      return [
-        willLoadKeyTable,
-        
-        // read head of record section, and then read all record blocks
-        _slice(pos += len, 32).exec(read_record_summary, pos).spread(function (record_summary) {
-          console.log(record_summary);
-          pos += record_summary.len;         // start of record blocks
-          len  = record_summary.index_len;   // total length of record blocks
-          return _slice(pos, len).exec(read_record_block, record_summary);
-        })      
-      ];
+/*//   <-- add one slash to restore code block below
 
-    }).spread(function(willLoadKeyTable) {
-      console.log('-- parse done --', file.name);
+      // delay to load key table
+      function willLoadKeyTable(input) {
+        var scanner = Scanner(input);
+
+        KEY_TABLE.alloc(keyword_summary.num_entries);
+        for (var i = 0, size = keyword_index.length; i < size; i++) {
+          read_key_block(scanner, keyword_index[i]);
+        }
+
+        KEY_TABLE.sort();
+        console.log('KEY_TABLE loaded.');
+      };
+
+      _slice(pos, keyword_summary.key_blocks_len).delay(500).then(willLoadKeyTable);
+//*/
+      pos += keyword_summary.key_blocks_len;    // start of record section
       
-//      // option to change delay value
-//      setTimeout(willLoadKeyTable, 500);
+    }).then(function () { 
+      return _slice(pos, 32).exec(read_record_summary, pos);
       
+    }).spread(function (record_summary) {       console.log(record_summary);
+      pos += record_summary.len;                // start of record blocks in record section
+      return _slice(pos, record_summary.index_len).exec(read_record_block, record_summary);
+
+    }).spread(function() {                      console.log('-- parse done --', file.name);
       // resolve and return lookup() function according to file extension (mdx/mdd)
       LOOKUP[ext].description = attrs.Description;
       return resolve(LOOKUP[ext]);
