@@ -1,32 +1,38 @@
 /*
- * A pure JavaScript implemented parser for MDict dictionary file (mdx/mdd).
+ * A pure Javascript implementation of MDict Parser which supports dictionary file in mdx/mdd format.
  * By Feng Dihai <fengdh@gmail.com>, 2015/07/01
  * 
- * For my wife, for my kids and family.
+ * For my wife, my kids and family to whom I'm in love with life.
  *
  * Based on:
  *  - An Analysis of MDX/MDD File Format by Xiaoqiang Wang (xwang)
  *    https://bitbucket.org/xwang/mdict-analysis/ 
  *  - GitHub: zhansliu/writemdict
  *    https://github.com/zhansliu/writemdict/blob/master/fileformat.md
+ *  - Source code of mdictparser.cc, part of goldendict
+ *    https://github.com/goldendict/goldendict/blob/master/mdictparser.cc
  * 
  * This is free software released under terms of the MIT License.
  * You can get a copy on http://opensource.org/licenses/MIT.
  *
  * NOTE - Unsupported features:
  *
- *    i. 64-bit number (offset/length).
- *       Only lower 32-bit used when reading number (<4G), 
- *       otherwise it's too hard task for JavaScript 5 or web app or for real world.
+ *    i. 64-bit number used in data offset or length.
+ *       Only lower 32-bit is recognized that validate number must be lower than 2^32 or 4G, 
+ *       due to supported number format in current Javascript (ECMAScript5) standard.
+ *       Huge dictionary file larger than 4G is considered out of scope for a web app IMHO.
  *
- *   ii. Encrypted keyword header which needs external regkey.
+ *   ii. Encrypted keyword header which requires external or embedded regkey.
  *       Most of shared MDict dictionary files are not encrypted,
- *       and having no intention to break protected ones.
- *       But keyword index encryption is common, so it is supported.
+ *       and I have no intention to break protected ones.
+ *       However keyword index encryption is common and supported well.
  *
- *  iii. Stylesheet substitution (is it really necessary?).
+ *  iii. Stylesheet substitution.
+ *       Encounter no example, I suppose it is not a popular feature.
+ *       Contact me if you have one in need of support.
  *
- *   iv. Audio support: a todo-task.
+ *   iv. Audio resource support.
+ *       It is a todo-task.
  *
  * MDict software and its file format is developed by Rayman Zhang(张文伟),
  * read more on http://www.mdict.cn/ or http://www.octopus-studio.com/.
@@ -34,7 +40,7 @@
 
 /**
  * Usage:
- *   mdict-core.js is defined as an AMD/Node module.
+ *   mdict-parser.js is defined as an AMD/Node module.
  *   To initialize it, you have to provide/define a module named with "mdict-parseXml",
  *   which will be used to covert a string to XML dom object when parsing dictionary head.
  *
@@ -92,9 +98,9 @@
   /*
    * Decrypt encrypted data block of keyword index (attrs.Encrypted = "2").
    * @see https://github.com/zhansliu/writemdict/blob/master/fileformat.md#keyword-index-encryption
-   * @param buf array buffer of source data
-   * @param key array buffer of decryption key, need to apply with ripemd128() before decryption
-   * @return array buffer now carrying decrypted data, occupying the same memory space of source buffer
+   * @param buf an ArrayBuffer of source data
+   * @param key an ArrayBuffer of decryption key, need to apply with ripemd128() before decryption
+   * @return an ArrayBuffer now carrying decrypted data, occupying the same memory space of source buffer
    */
   function decrypt(buf, key) {
     key = ripemd128(key);
@@ -110,12 +116,22 @@
   }
   
   /**
-   * Slice part of a file/blob object, return a promise object which will resolve an ArrayBuffer to feed subsequent process.
+   * For sliceThen(..).exec(proc, ..), mark what proc function returns is multiple values 
+   * to be used by further Promise#spread(..) call. 
+   */
+  function spreadus() {
+    var args = Array.prototype.slice.apply(arguments);
+    args._spreadus_ = true;
+    return args;
+  }
+  
+  /**
+   * Slice part of a file/blob object, return a promise object which will resolve to an ArrayBuffer to feed subsequent process.
    * The returned promise object is extened with exec(proc, args...) method which can be chained with further process.
    * @param file file or blob object
    * @param offset start position to slice
    * @param len length to slice
-   * @return a promise object which will resolve data been read as an ArrayBuffer
+   * @return a promise object which will resolve to an ArrayBuffer containing data been read
    */
   function sliceThen(file, offset, len) {
     var p = new Promise(function(_resolve) {
@@ -127,17 +143,19 @@
 
     /**
      * Call proc with specified arguments prepending with sliced file/blob data (ArrayBuffer) been read.
-     * To chain further process, return a promise object which will resovle [returned_result_from_proc, sliced_data].
-     * Use Promise#spread(..) to retrieve corresponding value.
+     * @param first argument is a function to be executed
+     * @param other optional arguments to be passed to function following auto supplied input ArrayBuffer
+     * @return a promise object which can be chained with further process through spread() method
      */
     p.exec = function(proc /*, args... */) {
       var args = Array.prototype.slice.call(arguments, 1);
       return p.then(function(data) {
           args.unshift(data);
-          return resolve([proc.apply(null, args), data]);
+          var ret = proc.apply(null, args);
+          return resolve(ret !== UNDEFINED && ret._spreadus_ ? ret : [ret]);
       });
     };
-
+        
     return p;
   }
   
@@ -196,15 +214,14 @@
    * @see https://github.com/zhansliu/writemdict/blob/master/fileformat.md#keyword-section
    */
   function createKeyTable() {
-    var ready,      // ready-to-use flag, set to true after loading and sorting
-        pos = 0,    // mark current position
+    var pos = 0,    // mark current position
         order = 0,  // key order in keyword section (alphabetically)
         arr, view,  // backed Float64Array, which can be viewed as an Uint32Array storing (key_hashcode, original_key_index) pair values
         data,       // backed Uint32Array to store record's offset in alphabetic order (same as keyword section storing order)
         F64 = new Float64Array(2), U32 = new Uint32Array(F64.buffer); // shared typed array to convert float64 to 2-uint32 value
     
     return {
-      // Allocate required array buffer for storing key table, where len is number of key entries.
+      // Allocate required ArrayBuffer for storing key table, where len is number of key entries.
       alloc:  function(len) { 
                 arr = new Float64Array(len);
                 view = new Uint32Array(arr.buffer); 
@@ -216,7 +233,7 @@
                 view[pos++] = hash(key);          // hash code of key
                 view[pos++] = order++;            // original key order
               },
-      // Pack array buffer if not used up
+      // Pack ArrayBuffer if not used up
       pack:   function() {
                 if (order < data.length) {
                   arr = new Float64Array(arr.buffer.slice(0, pos << 2));
@@ -268,8 +285,6 @@
                   val = view[i << 1];
                 }
               },
-      // Return ready-to-use flag, which will be set to true after loading and sorting of key table
-      isReady: function () { return ready; },
       debug:  function() { console.log(this.pack()); console.log(data); }
     }
   };
@@ -290,7 +305,7 @@
     var pos = 0, // current position
         arr;     // backed Uint32Array
     return {
-      // Allocate required array buffer for storing record block table, where len is number of record blocks.
+      // Allocate required ArrayBuffer for storing record block table, where len is number of record blocks.
       alloc:  function(len) { 
                 arr = new Uint32Array(len * 2);
               },
@@ -352,7 +367,7 @@
    */
   function parse_mdict(file, ext) {
 
-    var KEY_TABLE = createKeyTable(),                    // key table
+    var KEY_TABLE, // = createKeyTable(),                    // key table
         KEY_INDEX,
         RECORD_BLOCK_TABLE = createRecordBlockTable();   // record block table
 
@@ -425,7 +440,7 @@
                       ? function(key) { return key.replace(REGEXP_STRIPKEY, ''); }
                       : function(key) { return key; };
       } else {
-        _adaptKey = isTrue(attrs.StripKey) 
+        _adaptKey = isTrue(attrs.StripKey || (_v2 ? '' : 'yes')) 
                       ? function(key) { return key.toLowerCase().replace(REGEXP_STRIPKEY, ''); }
                       : function(key) { return key.toLowerCase(); };
       }
@@ -567,7 +582,7 @@
 
       console.log('dictionary attributes: ', attrs);
       config();
-      return len + 4;
+      return spreadus(len + 4, input);
     }
 
     /**
@@ -605,7 +620,8 @@
       var scanner = Scanner(input).readBlock(keyword_summary.key_index_comp_len, keyword_summary.key_index_decomp_len, _decryptors[1]),
           keyword_index = Array(keyword_summary.num_blocks);
       // start position of key block
-      offset += keyword_summary.key_index_comp_len;
+//      offset += keyword_summary.key_index_comp_len;
+      offset = 0;
       for (var i = 0, size; i < keyword_summary.num_blocks; i++) {
         keyword_index[i] = {
           num_entries: conseq(scanner.readNum(), size = scanner.readShort()),
@@ -623,7 +639,7 @@
         };
         offset += size;
       }
-      return keyword_index;
+      return spreadus(keyword_summary, keyword_index);
     }
 
     /**
@@ -713,11 +729,11 @@
     }
 
     /**
-     * Read definition as raw array buffer at specified offset for a given keyword in the record block, which is sliced from the file determined by a record block index.
+     * Read definition as raw ArrayBuffer at specified offset for a given keyword in the record block, which is sliced from the file determined by a record block index.
      * @param input record block sliced from the file
      * @param block record block index which determines a record block contains at target offset 
      * @param keyinfo a object contains record offset and optional size for the given keyword
-     * @return array buffer as definition for keyword
+     * @return an ArrayBuffer containing resource for keyword
      */
     function read_object(input, block, keyinfo) {
       var scanner = Scanner(input).readBlock(block.comp_size);
@@ -728,7 +744,7 @@
     /**
      * Find word definition for a key info object which contains record offset and optional size for the given keyword.
      * @param keyinfo a object contains offset and optional size for the given keyword
-     * @return a promise object which will resolve definition for keyword. Link to other keyword is followed to get actual definition.
+     * @return a promise object which will resolve to definition for keyword. Link to other keyword is followed to get actual definition.
      */
     function findWord(keyinfo) {
       var block = RECORD_BLOCK_TABLE.find(keyinfo.offset);
@@ -740,7 +756,7 @@
     /**
      * Find resource (image, sound etc.) for a key info object which contains record offset and optional size for the given keyword.
      * @param keyinfo a object contains offset and optional size for the given keyword
-     * @return a promise object which will resolve resource as array buffer for keyword 
+     * @return a promise object which will resolve to an ArrayBuffer containing resource for keyword 
      * TODO: Follow link, maybe it's too expensive and a rarely used feature?
      */
     function findResource(keyinfo) {
@@ -772,7 +788,7 @@
         }
         
         var word = phrase.trim().toLowerCase();
-        if (KEY_TABLE.isReady()) {
+        if (KEY_TABLE) {
           // express mode
           // TODO: match keyword in case of collision of hashcode
           var infos = KEY_TABLE.find(word);
@@ -805,7 +821,7 @@
       mdd: function(phrase) {
         var word = phrase.trim().toLowerCase();
         word = '\\' + word.replace(/(^[/\\])|([/]$)/, '');
-        if (KEY_TABLE.isReady()) {
+        if (KEY_TABLE) {
           // express mode
           var keyinfo = KEY_TABLE.find(word)[0];
           if (keyinfo) {
@@ -826,7 +842,7 @@
       }
     };
     
-    var MAX_CANDIDATES = 256, _cached_keys;
+    var MAX_CANDIDATES = 256, _cached_keys, mutual_ticket = 0;
     
     // TODO: max count
     // TODO: cancel running of matchKeys()
@@ -850,28 +866,33 @@
         if (filter) {
           list = list.filter(filter);
         }
-        return appendMore(word, list, KEY_INDEX[kdx.index + 1], expectedSize, filter);
+        return appendMore(word, list, KEY_INDEX[kdx.index + 1], expectedSize, filter, ++mutual_ticket);
       });
     };
     
+    // TODO: have to restrict max count to improve response
     /**
      * Append more to word list according to a filter or expected size.
      */
-    function appendMore(word, list, nextKdx, expectedSize, filter) {
+    function appendMore(word, list, nextKdx, expectedSize, filter, ticket) {
+      if (ticket !== mutual_ticket) {
+        throw 'force terminated';
+      }
       if (nextKdx) {
           if (filter) {
             if (nextKdx.first_word.substr(0, word.length) === word) {
-              return loadKeys(nextKdx).then(function(more) {
+              return loadKeys(nextKdx).delay(30).then(function(more) {
+                console.log(nextKdx);
                 Array.prototype.push.apply(list, more.filter(filter));
-                return appendMore(word, list, KEY_INDEX[nextKdx.index + 1], expectedSize, filter);
+                return appendMore(word, list, KEY_INDEX[nextKdx.index + 1], expectedSize, filter, ticket);
               });
             }
           } else {
             var shortage = expectedSize - list.length;
             if (shortage > 0) {
-              return loadKeys(nextKdx).then(function(more) {
+              return loadKeys(nextKdx).delay(30).then(function(more) {
                 Array.prototype.push.apply(list, more.slice(0, shortage));
-                return appendMore(word, list, KEY_INDEX[nextKdx.index + 1], expectedSize, filter);
+                return appendMore(word, list, KEY_INDEX[nextKdx.index + 1], expectedSize, filter, ticket);
               });
             } else {
               return list.slice(0, expectedSize);
@@ -905,7 +926,7 @@
           var idx = shrink(list, phrase);
           // look back for the first matched keyword position
           while (idx > 0) {
-            if (_adaptKey(list[--idx]) !== phrase) {
+            if (_adaptKey(list[--idx]) !== _adaptKey(phrase)) {
               idx++;
               break;
             }
@@ -921,9 +942,11 @@
       if (_cached_keys && _cached_keys.pilot === kdx.first_word) {
         return resolve(_cached_keys.list);
       } else {
-        return _slice(kdx.offset, kdx.comp_size).then(function(input) {
-          var scanner = Scanner(input).readBlock(kdx.comp_size, kdx.decomp_size),
-              list = Array(kdx.num_entries);
+        return slicedKeyBlock.then(function(input) {
+          var scanner = Scanner(input), list = Array(kdx.num_entries);
+          scanner.forward(kdx.offset);
+          scanner = scanner.readBlock(kdx.comp_size, kdx.decomp_size);
+              
           for (var i = 0; i < kdx.num_entries; i++) {
             var offset = scanner.readNum();
             list[i] = new Object(scanner.readText());
@@ -968,69 +991,75 @@
       }
     }
     
+    /**
+     * Delay to load key table.
+     * @param slicedKeyBlock a promise object which will resolve to an ArrayBuffer containing keyword blocks 
+     *                       sliced from mdx/mdd file.
+     * @param num_entries number of keyword entries
+     * @param keyword_index array of keyword index
+     * @param delay time to delay loading key table
+     */
+    function willLoadKeyTable(slicedKeyBlock, num_entries, keyword_index, delay) {
+      slicedKeyBlock.delay(delay).then(function (input) {
+        KEY_TABLE = createKeyTable();
+        KEY_TABLE.alloc(num_entries);
+
+        var scanner = Scanner(input);
+        for (var i = 0, size = keyword_index.length; i < size; i++) {
+          read_key_block(scanner, keyword_index[i]);
+        }
+
+        KEY_TABLE.sort();
+        console.log('KEY_TABLE loaded.');
+      });
+    }
+    
     // ------------------------------------------
     // start to load mdx/mdd file
     // ------------------------------------------
     console.log('start to load ' + file.name);
+    
     var pos = 0;
+    var slicedKeyBlock;
 
     // read first 4 bytes to get header length
     return _slice(pos, 4).exec(read_file_head).spread(function(len) {
-      pos += 4;
-      // then parse dictionary attributes in remained header section (header_str:len + checksum:4 bytes),
-      // also load next first 44 bytes of keyword section
-      return _slice(pos, len + 48).exec(read_header_sect, len);
+      pos += 4;                                   // start of header string in header section
+      return _slice(pos, len + 48)
+                .exec(read_header_sect, len);
 
     }).spread(function(header_remain_len, input) {
-        pos += header_remain_len;  // start of keyword section
-        return [read_keyword_summary(input, header_remain_len)];
+      pos += header_remain_len;                   // start of keyword section
+      return read_keyword_summary(input, header_remain_len);
 
-    }).spread(function(keyword_summary) {
-      console.log(keyword_summary);
-      pos += keyword_summary.len;    // start of key index
-      var len = keyword_summary.key_index_comp_len + keyword_summary.key_blocks_len; 
-                                     // total length of key index and key block
+    }).then(function(keyword_summary) {           console.log(keyword_summary);
+      pos += keyword_summary.len;                 // start of key index in keyword section
+      return _slice(pos, keyword_summary.key_index_comp_len)
+                .exec(read_keyword_index, keyword_summary, pos);
 
-      // read keyword index, and then read all key blocks
-      return _slice(pos, len).exec(read_keyword_index, keyword_summary, pos).spread(function (keyword_index, input) {
-        KEY_INDEX = keyword_index;
-        
-        // delay to load key table
-        function willLoadKeyTable() {
-          var scanner = Scanner(input);
-          scanner.forward(keyword_summary.key_index_comp_len);
+    }).spread(function (keyword_summary, keyword_index) {
+      pos += keyword_summary.key_index_comp_len;  // start of keyword block in keyword section
+      slicedKeyBlock = _slice(pos, keyword_summary.key_blocks_len);
 
-          KEY_TABLE.alloc(keyword_summary.num_entries);
-          for (var i = 0, size = keyword_index.length; i < size; i++) {
-            read_key_block(scanner, keyword_index[i]);
-          }
-
-          KEY_TABLE.sort();
-          console.log('KEY_TABLE loaded.');
-        };
-        
-        return [len, willLoadKeyTable];
-      });
+      /*
+      // it is quite responsive to look up word without key table, which scans keyword in key blocks in an effcient way
+      willLoadKeyTable(slicedKeyBlock, keyword_summary.num_entries, keyword_index, 00);
+      // */
       
-    }).spread(function (len, willLoadKeyTable) { 
-      return [
-        willLoadKeyTable,
-        
-        // read head of record section, and then read all record blocks
-        _slice(pos += len, 32).exec(read_record_summary, pos).spread(function (record_summary) {
-          console.log(record_summary);
-          pos += record_summary.len;         // start of record blocks
-          len  = record_summary.index_len;   // total length of record blocks
-          return _slice(pos, len).exec(read_record_block, record_summary);
-        })      
-      ];
+      pos += keyword_summary.key_blocks_len;    // start of record section
+      
+      KEY_INDEX = keyword_index;
+      
+    }).then(function () { 
+      return _slice(pos, 32)
+                .exec(read_record_summary, pos);
+      
+    }).spread(function (record_summary) {       console.log(record_summary);
+      pos += record_summary.len;                // start of record blocks in record section
+      return _slice(pos, record_summary.index_len)
+                .exec(read_record_block, record_summary);
 
-    }).spread(function(willLoadKeyTable) {
-      console.log('-- parse done --', file.name);
-      
-//      // option to change delay value
-//      setTimeout(willLoadKeyTable, 500);
-      
+    }).spread(function() {                      console.log('-- parse done --', file.name);
       // resolve and return lookup() function according to file extension (mdx/mdd)
       LOOKUP[ext].description = attrs.Description;
       return resolve(LOOKUP[ext]);
