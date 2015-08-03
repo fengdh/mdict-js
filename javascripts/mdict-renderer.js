@@ -155,6 +155,13 @@
       return $content;
     }    
     
+    function render($content) {
+      if (resources['mdd']) {
+        $content.find('img[src]').each(replaceImage);
+      }
+      return $content;
+    }    
+    
     return {
       lookup: function lookup(query) {
         return (resources['mdx'] || resources['mdd'])

@@ -21,16 +21,18 @@ require(['jquery', 'mdict-parser', 'mdict-renderer', 'selectize'], function($, M
     $('#btnLookup').attr('disabled', true);
 
     if (fileList.length > 0) {
+        $('#btnLookup').addClass('stripes');
         $('#word').on('keyup', function(e) { e.which === 13 && $('#btnLookup').click(); });
 
         MParser(fileList).then(function(resources) {
           var mdict = MRenderer(resources);
           
           function doSearch(phrase, offset) {
-              var result = mdict.lookup(phrase, offset).then(function($content) {
+              console.log(phrase + '');
+              mdict.lookup(phrase, offset).then(function($content) {
                 $('#definition').empty().append($content.contents());
+                console.log('--');
               });
-              $('#definition').html(result);
           }
           
 //          mdict.search('mind').then(function(list) {
@@ -42,7 +44,8 @@ require(['jquery', 'mdict-parser', 'mdict-renderer', 'selectize'], function($, M
 //          });
           
           $('#dict-title').html((resources['mdx'] || resources['mdd']).value().description || '** no description **');
-
+          mdict.render($('#dict-title'));
+          
           $('#btnLookup')
             .attr('disabled', false)
             .off('.#mdict')
@@ -55,33 +58,36 @@ require(['jquery', 'mdict-parser', 'mdict-renderer', 'selectize'], function($, M
             $('#word').selectize({
               plugins: ['restore_on_backspace'],
               maxItems: 1,
+              maxOptions: 1 << 20,
               valueField: 'value',
               labelField: 'word',
               searchField: 'word',
-              options: [],
               delimiter: '~~',
               create: function(v, callback) {
-                return ({word: v, key: adaptKey(v)});
+                return callback({word: v, key: adaptKey(v), value: v});
               },
               createOnBlur: true,
-              persist: true,
               closeAfterSelect: true,
               allowEmptyOption: true,
-              addPrecedence: 'New...',
+              score: function(search) {
+						var score = this.getScoreFunction(search);
+						return function(item) {
+							return 1;
+						};
+					},
               load: function(query, callback) {
-                console.log(this);
                 var self = this;
                 if (!query.length) {
                   this.clearOptions();
                   this.refreshOptions();
                   return;
                 };
-                mdict.search(query).then(function(list) { 
-                  console.log(list);
-                  var i = 0;
+                
+                mdict.search({phrase: query, forKeys: true, maxCount: 256}).then(function(list) {
+//                  console.log(list.join(', '));
+                  // TODO: filter candidate keyword starting with "_"
                   list = list.map(function(v) {
-                    i++;
-                    return {word: v, key: adaptKey(v), value: [v, v.offset]};
+                    return {word: v, key: adaptKey(v), value: v.offset};
                   });
                   self.clearOptions();
                   callback(list);
@@ -109,6 +115,7 @@ require(['jquery', 'mdict-parser', 'mdict-renderer', 'selectize'], function($, M
       var href = $(this).attr('href');
       if (href && href.substring(0, 8) === 'entry://') {
         var word = href.substring(8);
+        // TODO: remove '#' to get jump target
         if (word.charAt(0) !== '#') {
           word = word.replace(/(^[/\\])|([/]$)/, '');
 

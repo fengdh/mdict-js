@@ -357,10 +357,14 @@
   /**
    * Regular expression to strip key if dictionary's "StripKey" attribute is true. 
    */
+<<<<<<< HEAD
   var REGEXP_STRIPKEY = {
     'mdx' : /[., '/\\@_-]()/g,
     'mdd' : /([.][^.]*$)|[., '/\\@_-]/g        // strip '.' before file extension that is keeping the last period
   };
+=======
+  var REGEXP_STRIPKEY = /[,. '_-]/g;
+>>>>>>> origin/gh-pages
   
   /**
    * Parse MDict dictionary/resource file (mdx/mdd).
@@ -438,14 +442,21 @@
         _decryptors[1] = decrypt; 
       }
       
+<<<<<<< HEAD
       var regexp = REGEXP_STRIPKEY[ext];
+=======
+>>>>>>> origin/gh-pages
       if (isTrue(attrs.KeyCaseSensitive)) {
         _adaptKey = isTrue(attrs.StripKey) 
                       ? function(key) { return key.replace(regexp, '$1'); }
                       : function(key) { return key; };
       } else {
         _adaptKey = isTrue(attrs.StripKey || (_v2 ? '' : 'yes')) 
+<<<<<<< HEAD
                       ? function(key) { return key.toLowerCase().replace(regexp, '$1'); }
+=======
+                      ? function(key) { return key.toLowerCase().replace(REGEXP_STRIPKEY, ''); }
+>>>>>>> origin/gh-pages
                       : function(key) { return key.toLowerCase(); };
       }
     }
@@ -776,8 +787,13 @@
     function matchOffset(list, offset) {
       return list.some(function(el) { return el.offset === offset ? list = [el] : false; }) ? list : [];
     }
+<<<<<<< HEAD
     
     
+=======
+    
+    
+>>>>>>> origin/gh-pages
     // Lookup functions
     var LOOKUP = {
       /**
@@ -825,7 +841,10 @@
       mdd: function(phrase) {
         var word = phrase.trim().toLowerCase();
         word = '\\' + word.replace(/(^[/\\])|([/]$)/, '');
+<<<<<<< HEAD
         word = word.replace(/\//g, '\\');
+=======
+>>>>>>> origin/gh-pages
         if (KEY_TABLE) {
           // express mode
           var keyinfo = KEY_TABLE.find(word)[0];
@@ -841,9 +860,12 @@
               return one.toLowerCase() === word;
             });
           }).then(function(candidates) {
+<<<<<<< HEAD
             if (candidates.length === 0) {
               console.log(phrase);
             }
+=======
+>>>>>>> origin/gh-pages
             return findResource(candidates[0]);
           });
         }
@@ -852,6 +874,11 @@
     
     var MAX_CANDIDATES = 256, _cached_keys, mutual_ticket = 0;
     
+<<<<<<< HEAD
+=======
+    // TODO: max count
+    // TODO: cancel running of matchKeys()
+>>>>>>> origin/gh-pages
     function matchKeys(phrase, expectedSize) {
       expectedSize = expectedSize || MAX_CANDIDATES;
       var str = phrase.trim().toLowerCase(),
@@ -1040,12 +1067,21 @@
     }).spread(function(header_remain_len, input) {
       pos += header_remain_len;                   // start of keyword section
       return read_keyword_summary(input, header_remain_len);
+<<<<<<< HEAD
 
     }).then(function(keyword_summary) {           console.log(keyword_summary);
       pos += keyword_summary.len;                 // start of key index in keyword section
       return _slice(pos, keyword_summary.key_index_comp_len)
                 .exec(read_keyword_index, keyword_summary, pos);
 
+=======
+
+    }).then(function(keyword_summary) {           console.log(keyword_summary);
+      pos += keyword_summary.len;                 // start of key index in keyword section
+      return _slice(pos, keyword_summary.key_index_comp_len)
+                .exec(read_keyword_index, keyword_summary, pos);
+
+>>>>>>> origin/gh-pages
     }).spread(function (keyword_summary, keyword_index) {
       pos += keyword_summary.key_index_comp_len;  // start of keyword block in keyword section
       slicedKeyBlock = _slice(pos, keyword_summary.key_blocks_len);
@@ -1093,4 +1129,8 @@
                     .then(function() { return resolve(resources); });
     };
   
+<<<<<<< HEAD
 }));
+=======
+}));
+>>>>>>> origin/gh-pages
