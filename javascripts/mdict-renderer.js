@@ -31,7 +31,7 @@
 
   if (typeof define === 'function' && define.amd) {
     // AMD. Register as an anonymous module.
-    define(['jquery', 'bluebird', 'speex.js', 'pcmdata.min', 'bitstring'], factory);
+    define(['jquery', 'bluebird', 'speex', 'pcmdata.min', 'bitstring'], factory);
   } else {
     // Browser globals
     factory(jQuery, Promise);
