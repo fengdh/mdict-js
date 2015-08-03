@@ -357,7 +357,10 @@
   /**
    * Regular expression to strip key if dictionary's "StripKey" attribute is true. 
    */
-  var REGEXP_STRIPKEY = /[,. '_-]/g;
+  var REGEXP_STRIPKEY = {
+    'mdx' : /[., '/\\@_-]()/g,
+    'mdd' : /([.][^.]*$)|[., '/\\@_-]/g        // strip '.' before file extension that is keeping the last period
+  };
   
   /**
    * Parse MDict dictionary/resource file (mdx/mdd).
@@ -435,13 +438,14 @@
         _decryptors[1] = decrypt; 
       }
       
+      var regexp = REGEXP_STRIPKEY[ext];
       if (isTrue(attrs.KeyCaseSensitive)) {
         _adaptKey = isTrue(attrs.StripKey) 
-                      ? function(key) { return key.replace(REGEXP_STRIPKEY, ''); }
+                      ? function(key) { return key.replace(regexp, '$1'); }
                       : function(key) { return key; };
       } else {
         _adaptKey = isTrue(attrs.StripKey || (_v2 ? '' : 'yes')) 
-                      ? function(key) { return key.toLowerCase().replace(REGEXP_STRIPKEY, ''); }
+                      ? function(key) { return key.toLowerCase().replace(regexp, '$1'); }
                       : function(key) { return key.toLowerCase(); };
       }
     }
@@ -821,6 +825,7 @@
       mdd: function(phrase) {
         var word = phrase.trim().toLowerCase();
         word = '\\' + word.replace(/(^[/\\])|([/]$)/, '');
+        word = word.replace(/\//g, '\\');
         if (KEY_TABLE) {
           // express mode
           var keyinfo = KEY_TABLE.find(word)[0];
@@ -836,6 +841,9 @@
               return one.toLowerCase() === word;
             });
           }).then(function(candidates) {
+            if (candidates.length === 0) {
+              console.log(phrase);
+            }
             return findResource(candidates[0]);
           });
         }
@@ -844,8 +852,6 @@
     
     var MAX_CANDIDATES = 256, _cached_keys, mutual_ticket = 0;
     
-    // TODO: max count
-    // TODO: cancel running of matchKeys()
     function matchKeys(phrase, expectedSize) {
       expectedSize = expectedSize || MAX_CANDIDATES;
       var str = phrase.trim().toLowerCase(),
@@ -951,6 +957,9 @@
             var offset = scanner.readNum();
             list[i] = new Object(scanner.readText());
             list[i].offset = offset;
+            if (i > 0) {
+              list[i - 1].size = offset - list[i - 1].offset;
+            }
           }
           _cached_keys = {list: list, pilot: kdx.first_word};
           return list;
