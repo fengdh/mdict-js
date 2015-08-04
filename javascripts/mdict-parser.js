@@ -835,7 +835,11 @@
         var word = phrase.trim().toLowerCase();
         word = '\\' + word.replace(/(^[/\\])|([/]$)/, '');
         word = word.replace(/\//g, '\\');
+<<<<<<< HEAD
         if (KEY_TABLE && KEY_TABLE.isReady()) {
+=======
+        if (KEY_TABLE) {
+>>>>>>> origin/gh-pages
           // express mode
           var keyinfo = KEY_TABLE.find(word)[0];
           if (keyinfo) {
@@ -855,6 +859,10 @@
             } else {
               return findResource(candidates[0]);
             }
+<<<<<<< HEAD
+=======
+            return findResource(candidates[0]);
+>>>>>>> origin/gh-pages
           });
         }
       }

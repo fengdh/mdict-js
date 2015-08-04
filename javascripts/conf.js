@@ -1,6 +1,10 @@
 var require = {
   // waitSeconds: 0,
+<<<<<<< HEAD
   // baseUrl: '.',
+=======
+  baseUrl: './javascripts',
+>>>>>>> origin/gh-pages
   waitSeconds: 0,
 
   paths: {
