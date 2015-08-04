@@ -31,7 +31,7 @@
 
   if (typeof define === 'function' && define.amd) {
     // AMD. Register as an anonymous module.
-    define(['jquery', 'bluebird', 'speex', 'pcmdata.min', 'bitstring'], factory);
+    define(['jquery', 'bluebird', 'speex.js', 'pcmdata.min', 'bitstring'], factory);
   } else {
     // Browser globals
     factory(jQuery, Promise);
@@ -69,6 +69,10 @@
       });
     }
     
+    function playAudio() {
+      $(this).find('audio')[0].play();
+    }
+    
     function replaceAudio(index, a) {
       var $a = $(a);
       var href = $a.attr('href'), res = href.substring(8);
@@ -84,9 +88,7 @@
           blob = decodeFile(String.fromCharCode.apply(null, data));
         }
         var url = URL.createObjectURL(blob);
-        console.log(url);
-        var $audio = $('<audio controls>').attr({src: url, src_: href});
-        $a.replaceWith($audio);
+        $a.append($('<audio>').attr({src: url, src_: href})).on('click', playAudio);
       });
     }
     
@@ -125,9 +127,7 @@
 
       waveDataBuf = Speex.util.str2ab(waveData);
 
-      var blob = new Blob([waveDataBuf], {
-        type: "audio/wav"
-      });
+      var blob = new Blob([waveDataBuf], {type: "audio/wav"});
       return blob;
 
     }
