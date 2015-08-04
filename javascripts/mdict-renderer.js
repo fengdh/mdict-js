@@ -31,11 +31,7 @@
 
   if (typeof define === 'function' && define.amd) {
     // AMD. Register as an anonymous module.
-<<<<<<< HEAD
     define(['jquery', 'bluebird', 'speex', 'pcmdata', 'bitstring'], factory);
-=======
-    define(['jquery', 'bluebird', 'speex', 'pcmdata.min', 'bitstring'], factory);
->>>>>>> origin/gh-pages
   } else {
     // Browser globals
     factory(jQuery, Promise);
@@ -106,7 +102,6 @@
       });
     }
     
-<<<<<<< HEAD
     function playAudio(e, $a) {
       ($a || $(this)).find('audio')[0].play();
     }
@@ -133,29 +128,6 @@
            .then(function(url) {
               $link.attr({href: url, href_: href});
             });
-=======
-    function playAudio() {
-      $(this).find('audio')[0].play();
-    }
-    
-    function replaceAudio(index, a) {
-      var $a = $(a);
-      var href = $a.attr('href'), res = href.substring(8);
-      resources['mdd'].then(function(lookup) {
-        return lookup(res);
-      }).then(function(data) {
-        console.log('audio: ', href);
-        var ext = getExtension(res, 'wav');
-        var blob;
-        if (ext === 'wav') {
-          blob = new Blob([data], {type: MIME[ext]});
-        } else {  // 'spx'
-          blob = decodeFile(String.fromCharCode.apply(null, data));
-        }
-        var url = URL.createObjectURL(blob);
-        $a.append($('<audio>').attr({src: url, src_: href})).on('click', playAudio);
-      });
->>>>>>> origin/gh-pages
     }
     
     function decodeFile(file) {
@@ -178,19 +150,8 @@
           sampleRate: header.rate,
           channelCount: header.nb_channels,
           bytesPerSample: 2,
-<<<<<<< HEAD
           data: spx.decode(ogg.bitstream(), ogg.segments)
         });
-=======
-          data: samples
-        }),
-        waveDataBuf;
-
-      waveDataBuf = Speex.util.str2ab(waveData);
-
-      var blob = new Blob([waveDataBuf], {type: "audio/wav"});
-      return blob;
->>>>>>> origin/gh-pages
 
       return new Blob([Speex.util.str2ab(waveData)], {type: "audio/wav"});
     }
@@ -199,13 +160,9 @@
       if (resources['mdd']) {
         $content.find('img[src]').each(replaceImage);
         
-<<<<<<< HEAD
         $content.find('link[rel=stylesheet]').each(replaceCss);
         
         $content.find('a[href^="sound://"]').on('click', renderAudio);
-=======
-        $content.find('a[href^="sound://"]').each(replaceAudio);
->>>>>>> origin/gh-pages
       }
       return $content;
     }    
