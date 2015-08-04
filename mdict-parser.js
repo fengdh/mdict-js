@@ -57,7 +57,7 @@
   
   if (typeof define === 'function' && define.amd) {
     // AMD. Register as an anonymous module.
-    define(['pako_inflate', 'lzo', 'ripemd128', 'murmurhash3', 'bluebird', 'mdict-parseXml'], factory);
+    define(['pako', 'lzo', 'ripemd128', 'murmurhash3', 'bluebird', 'mdict-parseXml'], factory);
   } else {
     // Browser globals
     factory(pako, lzo, ripemd128, MurmurHash3, Promise, parseXml);
@@ -214,7 +214,8 @@
    * @see https://github.com/zhansliu/writemdict/blob/master/fileformat.md#keyword-section
    */
   function createKeyTable() {
-    var pos = 0,    // mark current position
+    var ready,      // key table ready-to-use flag
+        pos = 0,    // mark current position
         order = 0,  // key order in keyword section (alphabetically)
         arr, view,  // backed Float64Array, which can be viewed as an Uint32Array storing (key_hashcode, original_key_index) pair values
         data,       // backed Uint32Array to store record's offset in alphabetic order (same as keyword section storing order)
@@ -232,6 +233,8 @@
                 data[order] = offset;             // offset of the corresponding record
                 view[pos++] = hash(key);          // hash code of key
                 view[pos++] = order++;            // original key order
+//        if (key.match('\\.ttf') 
+//            || key.match('\\.css') ) console.log(key);
               },
       // Pack ArrayBuffer if not used up
       pack:   function() {
@@ -285,6 +288,7 @@
                   val = view[i << 1];
                 }
               },
+      isReady:function() { return ready; },
       debug:  function() { console.log(this.pack()); console.log(data); }
     }
   };
@@ -456,6 +460,7 @@
       var dv = new DataView(buf);
 
       var methods = {
+        buffer: function() { return buf; },
         // target data size in bytes
         size: function() {
           return len || buf.byteLength;
@@ -740,9 +745,13 @@
      * @return an ArrayBuffer containing resource for keyword
      */
     function read_object(input, block, keyinfo) {
-      var scanner = Scanner(input).readBlock(block.comp_size);
-      scanner.forward(keyinfo.offset - block.decomp_offset);
-      return scanner.readRaw(keyinfo.size);
+      if (input.byteLength > 0) {
+        var scanner = Scanner(input).readBlock(block.comp_size);
+        scanner.forward(keyinfo.offset - block.decomp_offset);
+        return scanner.readRaw(keyinfo.size);
+      } else {
+        throw '* OUT OF FILE RANGE * ' + keyinfo + ' @offset=' + block.comp_offset;
+      }
     }
     
     /**
@@ -792,7 +801,7 @@
         }
         
         var word = phrase.trim().toLowerCase();
-        if (KEY_TABLE) {
+        if (KEY_TABLE && KEY_TABLE.isReady()) {
           // express mode
           // TODO: match keyword in case of collision of hashcode
           var infos = KEY_TABLE.find(word);
@@ -826,13 +835,13 @@
         var word = phrase.trim().toLowerCase();
         word = '\\' + word.replace(/(^[/\\])|([/]$)/, '');
         word = word.replace(/\//g, '\\');
-        if (KEY_TABLE) {
+        if (KEY_TABLE && KEY_TABLE.isReady()) {
           // express mode
           var keyinfo = KEY_TABLE.find(word)[0];
           if (keyinfo) {
             return findResource(keyinfo);
           } else {
-            return reject("*RESOURCE NOT FOUND* " + phrase);
+            return reject('*RESOURCE NOT FOUND* ' + phrase);
           }
         } else {
           // scan mode
@@ -842,9 +851,10 @@
             });
           }).then(function(candidates) {
             if (candidates.length === 0) {
-              console.log(phrase);
+              throw '*RESOURCE NOT FOUND* ' + phrase;
+            } else {
+              return findResource(candidates[0]);
             }
-            return findResource(candidates[0]);
           });
         }
       }

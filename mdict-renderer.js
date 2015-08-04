@@ -31,7 +31,7 @@
 
   if (typeof define === 'function' && define.amd) {
     // AMD. Register as an anonymous module.
-    define(['jquery', 'bluebird', 'speex.js', 'pcmdata.min', 'bitstring'], factory);
+    define(['jquery', 'bluebird', 'speex', 'pcmdata', 'bitstring'], factory);
   } else {
     // Browser globals
     factory(jQuery, Promise);
@@ -43,114 +43,126 @@
     'spx': 'audio/x-speex',
     'jpg': 'image/jpeg',
     'png': 'image/png'
-  }
+  };
+  
+
   
   function getExtension(filename, defaultExt) {
     return /(?:\.([^.]+))?$/.exec(filename)[1] || defaultExt;
   }
   
-  var saveData = (function() {
-  var a = document.createElement("a");
-  document.body.appendChild(a);
-  a.style = "display: none";
-  return function(data, fileName, type) {
-    var blob = new Blob([data], { type: type || "octet/stream" });
-    a.href = window.URL.createObjectURL(blob);
-    a.download = fileName;
-    a.click();
-    window.URL.revokeObjectURL(a.href);
-    document.body.removeChild(a);
-  };
-}());
-  
   return function createRenderer(resources) {
+
+    var cache = (function createCache(mdd) {
+    var repo = {};
+    
+      function get(id, load) {
+        var entry = repo[id];
+        if (!entry) {
+          repo[id] = entry = new Promise(function(resolve) {
+          var will = mdd.then(function(lookup) {
+            console.log('lookup: ' + id);
+            return lookup(id);
+          }).then(load)
+            .then(function(url) { resolve(url); });
+          });
+        }
+        return entry;
+      }
+      
+      return {get: get};
+    })(resources['mdd']);
+    
+    function loadImage(data) {
+      var blob = new Blob([data], {type: 'image'});
+      return URL.createObjectURL(blob);      
+    }
+
+    function loadCss(data) {
+      var blob = new Blob([data], {type: 'text/css'});
+      return URL.createObjectURL(blob);      
+    }
+    
+    function loadAudio(ext, data) {
+      var blob;
+      if (ext === 'wav') {
+        blob = new Blob([data], {type: MIME[ext]});
+      } else {  // 'spx'
+        blob = decodeFile(String.fromCharCode.apply(null, data));
+      }
+      return URL.createObjectURL(blob);
+    }
     
     // TODO: LRU cache: remove oldest one only after rendering.
     function replaceImage(index, img) {
       var $img = $(img);
       var src = $img.attr('src');
-      resources['mdd'].then(function (lookup) {
-        return lookup(src);
-      }).then(function (data) {
-          var blob = new Blob([data], {type: 'image'});
-          blob.name = "MBC";
-          var url = URL.createObjectURL(blob);
-          // TODO: need to call window.URL.revokeObjectURL() to release memory
-          //       or use LRU cache
-          $img.attr('src', url);
-          $img.attr('src_', src);
-        
+      cache.get(src, loadImage).then(function(url) {
+        $img.attr({src: url, src_: src});
       });
     }
     
-    function replaceAudio(index, a) {
-      var $a = $(a);
-      var href = $a.attr('href'), res = href.substring(8);
-      resources['mdd'].then(function(lookup) {
-        return lookup(res);
-      }).then(function(data) {
-        console.log('audio: ', href);
+    function playAudio(e, $a) {
+      ($a || $(this)).find('audio')[0].play();
+    }
+    
+    function renderAudio() {
+      var $a = $(this);
+      if ($a.attr('href_')) {
+        playAudio($a);
+      } else {
+        var href = $a.attr('href'), res = href.substring(8);
         var ext = getExtension(res, 'wav');
-        var blob;
-        if (ext === 'wav') {
-          blob = new Blob([data], {type: MIME[ext]});
-        } else {  // 'spx'
-          blob = decodeFile(String.fromCharCode.apply(null, data));
-        }
-        var url = URL.createObjectURL(blob);
-        console.log(url);
-        var $audio = $('<audio controls>').attr({src: url, src_: href});
-        $a.replaceWith($audio);
-      });
+        cache.get(res, loadAudio.bind(null, ext))
+             .then(function(url) {
+                $a.append($('<audio>').attr({src: url, src_: href})).on('click', playAudio);
+                setTimeout(playAudio.bind($a));
+             });
+      }
+    }
+    
+    function replaceCss(index, link) {
+      var $link = $(link);
+      var href = $link.attr('href');
+      cache.get(href, loadCss)
+           .then(function(url) {
+              $link.attr({href: url, href_: href});
+            });
     }
     
     function decodeFile(file) {
-      var stream, samples, st;
-      var ogg, header, err;
-
-      ogg = new Ogg(file, {
-        file: true
-      });
+      var ogg = new Ogg(file, {file: true});
       ogg.demux();
-      stream = ogg.bitstream();
 
-      header = Speex.parseHeader(ogg.frames[0]);
+      var header = Speex.parseHeader(ogg.frames[0]);
       console.log(header);
 
-      comment = new SpeexComment(ogg.frames[1]);
+      var comment = new SpeexComment(ogg.frames[1]);
       console.log(comment.data);
 
-      st = new Speex({
+      var spx = new Speex({
         quality: 8,
         mode: header.mode,
         rate: header.rate
       });
-
-      samples = st.decode(stream, ogg.segments);
-
-
+      
       var waveData = PCMData.encode({
           sampleRate: header.rate,
           channelCount: header.nb_channels,
           bytesPerSample: 2,
-          data: samples
-        }),
-        waveDataBuf;
+          data: spx.decode(ogg.bitstream(), ogg.segments)
+        });
 
-      waveDataBuf = Speex.util.str2ab(waveData);
-
-      var blob = new Blob([waveDataBuf], {
-        type: "audio/wav"
-      });
-      return blob;
-
+      return new Blob([Speex.util.str2ab(waveData)], {type: "audio/wav"});
     }
 
     function render($content) {
       if (resources['mdd']) {
         $content.find('img[src]').each(replaceImage);
         
-        $content.find('a[href^="sound://"]').each(replaceAudio);
+        $content.find('link[rel=stylesheet]').each(replaceCss);
+        
+        $content.find('a[href^="sound://"]').on('click', renderAudio);
       }
       return $content;
     }    
