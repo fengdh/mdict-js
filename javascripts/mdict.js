@@ -35,13 +35,6 @@ require(['jquery', 'mdict-parser', 'mdict-renderer', 'selectize'], function($, M
               });
           }
           
-//          mdict.search('mind').then(function(list) {
-//            console.log(list);
-//          });
-//
-//          mdict.search("o'clock").then(function(list) {
-//            console.log(list);
-//          });
           
           $('#dict-title').html((resources['mdx'] || resources['mdd']).value().description || '** no description **');
           mdict.render($('#dict-title'));
@@ -126,22 +119,26 @@ require(['jquery', 'mdict-parser', 'mdict-renderer', 'selectize'], function($, M
     });
   }
 
+
+});
+
   
   
     /**
      * Save array buffer data as a download file. 
      */
     var saveData = (function() {
-      var a = document.createElement("a");
-      document.body.appendChild(a);
-      a.style = "display: none";
       return function(data, fileName, type) {
+        var a = document.createElement("a");
+        document.body.appendChild(a);
+        a.style = "display: none";
         var blob = new Blob([data], { type: type || "octet/stream" });
         a.href = window.URL.createObjectURL(blob);
         a.download = fileName;
         a.click();
-        window.URL.revokeObjectURL(a.href);
-        document.body.removeChild(a);
+        setTimeout(function() {
+          window.URL.revokeObjectURL(a.href);
+          document.body.removeChild(a);
+        }, 500);
       };
     }());
-});
