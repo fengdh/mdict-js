@@ -1,6 +1,7 @@
 var require = {
   // waitSeconds: 0,
   baseUrl: './javascripts',
+  waitSeconds: 0,
 
   paths: {
     'jquery':         'jquery-1.11.1',
