@@ -96,7 +96,8 @@
     // TODO: LRU cache: remove oldest one only after rendering.
     function replaceImage(index, img) {
       var $img = $(img);
-      var src = $img.attr('src');
+      var src = $img.attr('src'), m = /^file:\/\/(.*)/.exec(src);
+      if (m) { src = m[1]; }
       cache.get(src, loadImage).then(function(url) {
         $img.attr({src: url, src_: src});
       });
