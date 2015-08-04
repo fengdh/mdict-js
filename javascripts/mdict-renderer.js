@@ -49,20 +49,6 @@
     return /(?:\.([^.]+))?$/.exec(filename)[1] || defaultExt;
   }
   
-  var saveData = (function() {
-  var a = document.createElement("a");
-  document.body.appendChild(a);
-  a.style = "display: none";
-  return function(data, fileName, type) {
-    var blob = new Blob([data], { type: type || "octet/stream" });
-    a.href = window.URL.createObjectURL(blob);
-    a.download = fileName;
-    a.click();
-    window.URL.revokeObjectURL(a.href);
-    document.body.removeChild(a);
-  };
-}());
-  
   return function createRenderer(resources) {
     
     // TODO: LRU cache: remove oldest one only after rendering.
@@ -151,13 +137,6 @@
         $content.find('img[src]').each(replaceImage);
         
         $content.find('a[href^="sound://"]').each(replaceAudio);
-      }
-      return $content;
-    }    
-    
-    function render($content) {
-      if (resources['mdd']) {
-        $content.find('img[src]').each(replaceImage);
       }
       return $content;
     }    
