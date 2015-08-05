@@ -124,7 +124,11 @@
       var href = $link.attr('href');
       cache.get(href, loadData.bind(null, MIME['css']))
            .then(function(url) {
-              $link.attr({href: url, href_: href});
+              // $link.attr({href: url, href_: href});
+              // TODO: Limit scope of embedded styles provide by mdd file
+              // TODO: use shadow dom for Chrome
+              // TODO: use scoped style for Firefox
+              $link.replaceWith($('<style scoped>', {src_: href}).text('@import url("' + url + '")'));
             });
     }
     
@@ -162,13 +166,15 @@
         
         $content.find('a[href^="sound://"]').on('click', renderAudio);
       }
-      // in-page link
+      
+      // rewrite in-page link
       $content.find('a[href^="entry://"]').each(function() { 
         var $el = $(this), href = $el.attr('href');
         if (href.match('#')) {
           $el.attr('href', href.substring(8));
         }
       });
+      
       return $content;
     }    
     

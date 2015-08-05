@@ -893,7 +893,7 @@
      * @param keyword_index array of keyword index
      * @param delay time to delay loading key table
      */
-    function willLoadKeyTable(slicedKeyBlock, num_entries, keyword_index, delay) {
+    function willScanKeyTable(slicedKeyBlock, num_entries, keyword_index, delay) {
       slicedKeyBlock.delay(delay).then(function (input) {
 
         var scanner = Scanner(input);
@@ -932,9 +932,9 @@
       pos += keyword_summary.key_index_comp_len;  // start of keyword block in keyword section
       slicedKeyBlock = _slice(pos, keyword_summary.key_blocks_len);
 
-      //*
+      /*
       // it is quite responsive to look up word without key table, which scans keyword in key blocks in an effcient way
-      willLoadKeyTable(slicedKeyBlock, keyword_summary.num_entries, keyword_index, 00);
+      willScanKeyTable(slicedKeyBlock, keyword_summary.num_entries, keyword_index, 00);
       // */
       
       pos += keyword_summary.key_blocks_len;    // start of record section
