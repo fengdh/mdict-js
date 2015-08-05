@@ -822,7 +822,7 @@
               break;
             }
           }        
-          return [kdx, idx, list]; 
+          return [kdx, Math.min(idx, list.length - 1), list];
         });
     }
     
