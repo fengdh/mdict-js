@@ -1,21 +1,11 @@
 var require = {
-  // waitSeconds: 0,
-<<<<<<< HEAD
-  // baseUrl: '.',
-=======
   baseUrl: './javascripts',
->>>>>>> origin/gh-pages
   waitSeconds: 0,
 
   paths: {
     'jquery'        : 'jquery-1.11.3.min',
     'pako'          : 'pako_inflate.min',
-    'lzo'           : 'minilzo-decompress2.min',
-/*    
-    'lzo'           : 'lzo-wrapper',
-    'lzo1x'         : 'lzo1x', 
-    'lzo-wrapper'   : 'lzo-wrapper', 
-//*/    
+    'lzo'           : 'minilzo-decompress.min',
     
     'bluebird'      : 'bluebird.min',
     'selectize'     : 'selectize.min',
@@ -37,6 +27,5 @@ var require = {
 
   shim: {
     'selectize'	    : {deps: ['jquery']},
-//    'lzo-wrapper'   : {deps: ['lzo1x']},
   }
 };

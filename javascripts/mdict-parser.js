@@ -31,9 +31,6 @@
  *       Encounter no example, I suppose it is not a popular feature.
  *       Contact me if you have one in need of support.
  *
- *   iv. Audio resource support.
- *       It is a todo-task.
- *
  * MDict software and its file format is developed by Rayman Zhang(张文伟),
  * read more on http://www.mdict.cn/ or http://www.octopus-studio.com/.
  */
@@ -198,102 +195,6 @@
   }
   
   /*
-   * Create a Key Table object to load keyword blocks from keyword section in mdx/mdd file.
-   * Retrived data is stored in a compact format.
-   * Here key is also called keyword or head word for dictionary entry.
-   * 
-   * Compact key table format uses Uint32Array to store key's hash code and corresponding record's offset.
-   * For a key table containing N entries, an Uint32Array is used to store N pairs of (key_hashcode, original_key_order) value, 
-   * while another Uint32Array to store N offset values of corresponding record in their original(alphabetic) order.
-   *
-   * After reading key table from mdx/mdd file, sort the first Uint32Array by key_hashcode value (using Array.prototype.sort).
-   * Given a key, applying its hash code to run binary-search for its original key order on the first Uint32Array, 
-   * then retrieve offset value of the corresponding record, also with computed record size from the second Uint32Array.
-   *
-   * To accept arbitary user entry, key is converted to lower case to compute its hash code.
-   * @see https://github.com/zhansliu/writemdict/blob/master/fileformat.md#keyword-section
-   */
-  function createKeyTable() {
-    var ready,      // key table ready-to-use flag
-        pos = 0,    // mark current position
-        order = 0,  // key order in keyword section (alphabetically)
-        arr, view,  // backed Float64Array, which can be viewed as an Uint32Array storing (key_hashcode, original_key_index) pair values
-        data,       // backed Uint32Array to store record's offset in alphabetic order (same as keyword section storing order)
-        F64 = new Float64Array(2), U32 = new Uint32Array(F64.buffer); // shared typed array to convert float64 to 2-uint32 value
-    
-    return {
-      // Allocate required ArrayBuffer for storing key table, where len is number of key entries.
-      alloc:  function(len) { 
-                arr = new Float64Array(len);
-                view = new Uint32Array(arr.buffer); 
-                data = new Uint32Array(len);
-              },
-      // Store retrived key info, where offset is the corresponding record's offset
-      put:    function(offset, key) {
-                data[order] = offset;             // offset of the corresponding record
-                view[pos++] = hash(key);          // hash code of key
-                view[pos++] = order++;            // original key order
-//        if (key.match('\\.ttf') 
-//            || key.match('\\.css') ) console.log(key);
-              },
-      // Pack ArrayBuffer if not used up
-      pack:   function() {
-                if (order < data.length) {
-                  arr = new Float64Array(arr.buffer.slice(0, pos << 2));
-                  view = new Uint32Array(arr.buffer);;
-                  data = new Uint32Array(data.buffer.slice(0, order * Uint32Array.BYTES_PER_ELEMENT));
-                }
-                return view;
-              },
-      // Sort the Uint32Array storing (key_hashcode, original_key_order) pair values, 
-      // treat each pair of value as a Float64 and compared with value of key_hashcode only. 
-      sort:   function() {
-                this.pack();
-                Array.prototype.sort.call(arr, function(f1, f2) { return F64[0] = f1, F64[1] = f2, U32[0] - U32[2]; });
-                ready = true;
-              },
-      // Given a key, appling its hash code to run binary search in key table.
-      // Return array of {offset: , size: } for all possible matched key with the same hash code, else return undefined.
-      // Key is converted to lower case to compute its hash code.
-      find:   function(key) {
-                U32[0] = hash(key); // covert negative value to two's complement if necessary
-        
-                var hashcode = U32[0], hi = arr.length - 1, lo = 0, i = (lo + hi) >> 1, val = view[i << 1];
-
-                while (true) {
-                  if (hashcode === val) {
-                    // return all possible keys with the same hash code
-                    while (true) {
-                      if (view[--i << 1] !== hashcode) {
-                        i++;
-                        break;
-                      }
-                    }
-                    var result = [];
-                    while (true) {
-                      var at = view[(i << 1) + 1];
-                      // NOTE: size of the last record is not required so leaving it with value of undefined.
-                      result.push({offset: data[at], size: at < data.length - 2 ? data[at + 1] - data[at] : UNDEFINED});
-                      if (view[++i << 1] !== hashcode) {
-                        break;
-                      }
-                    }
-                    return result;
-                  } else if (hi === lo || i === hi || i === lo) {
-                    return;
-                  }
-
-                  (hashcode < val) ? hi = i : lo = i;
-                  i = (lo + hi) >> 1;
-                  val = view[i << 1];
-                }
-              },
-      isReady:function() { return ready; },
-      debug:  function() { console.log(this.pack()); console.log(data); }
-    }
-  };
-  
-  /*
    * Create a Record Block Table object to load record block info from index part of record section in mdx/mdd file.
    * Retrived data is stored in an Uint32Array which contains N+1 pairs of (offset_comp, offset_decomp) value,
    * where N is number of record blocks. The tail of the table shows offset of the last record block's end.
@@ -374,8 +275,7 @@
    */
   function parse_mdict(file, ext) {
 
-    var KEY_TABLE, // = createKeyTable(),                    // key table
-        KEY_INDEX,
+    var KEY_INDEX,
         RECORD_BLOCK_TABLE = createRecordBlockTable();   // record block table
 
     var attrs = {},     // storing dictionary attributes
@@ -658,9 +558,9 @@
      */
     function read_key_block(scanner, kdx) {
       var scanner = scanner.readBlock(kdx.comp_size, kdx.decomp_size);
-      for (var i = 0; i < kdx.num_entries; i++) {
-        KEY_TABLE.put(scanner.readNum(), scanner.readText());
-      }
+//      for (var i = 0; i < kdx.num_entries; i++) {
+//        console.log(scanner.readNum(), scanner.readText());
+//      }
     }
 
     /**
@@ -801,32 +701,17 @@
         }
         
         var word = phrase.trim().toLowerCase();
-        if (KEY_TABLE && KEY_TABLE.isReady()) {
-          // express mode
-          // TODO: match keyword in case of collision of hashcode
-          var infos = KEY_TABLE.find(word);
-          if (infos) {
-            if (offset !== UNDEFINED) {
-              infos = matchOffset(infos, offset);
-            } else {
-              infos.sort(function(a, b) { return a.offset - b.offset; });
-            }
-            return harvest(infos.map(findWord));
+
+        // scan mode
+        return seekVanguard(word).spread(function(kdx, idx, list) {
+          list = list.slice(idx);
+          if (offset !== UNDEFINED) {
+            list = matchOffset(list, offset);
           } else {
-            return reject('*WORD NOT FOUND* ' + phrase);
+            list = list.filter(function(el) { return el.toLowerCase() === word; });
           }
-        } else {
-          // scan mode
-          return seekVanguard(word).spread(function(kdx, idx, list) {
-            list = list.slice(idx);
-            if (offset !== UNDEFINED) {
-              list = matchOffset(list, offset);
-            } else {
-              list = list.filter(function(el) { return el.toLowerCase() === word; });
-            }
-            return harvest(list.map(findWord));
-          });
-        }
+          return harvest(list.map(findWord));
+        });
       },
       
       // TODO: chain multiple mdd file
@@ -835,36 +720,18 @@
         var word = phrase.trim().toLowerCase();
         word = '\\' + word.replace(/(^[/\\])|([/]$)/, '');
         word = word.replace(/\//g, '\\');
-<<<<<<< HEAD
-        if (KEY_TABLE && KEY_TABLE.isReady()) {
-=======
-        if (KEY_TABLE) {
->>>>>>> origin/gh-pages
-          // express mode
-          var keyinfo = KEY_TABLE.find(word)[0];
-          if (keyinfo) {
-            return findResource(keyinfo);
-          } else {
-            return reject('*RESOURCE NOT FOUND* ' + phrase);
-          }
-        } else {
-          // scan mode
-          return seekVanguard(word).spread(function(kdx, idx, list) {
-            return list.slice(idx).filter(function(one) {
-              return one.toLowerCase() === word;
-            });
-          }).then(function(candidates) {
-            if (candidates.length === 0) {
-              throw '*RESOURCE NOT FOUND* ' + phrase;
-            } else {
-              return findResource(candidates[0]);
-            }
-<<<<<<< HEAD
-=======
-            return findResource(candidates[0]);
->>>>>>> origin/gh-pages
+        // scan mode
+        return seekVanguard(word).spread(function(kdx, idx, list) {
+          return list.slice(idx).filter(function(one) {
+            return one.toLowerCase() === word;
           });
-        }
+        }).then(function(candidates) {
+          if (candidates.length === 0) {
+            throw '*RESOURCE NOT FOUND* ' + phrase;
+          } else {
+            return findResource(candidates[0]);
+          }
+        });
       }
     };
     
@@ -1028,15 +895,12 @@
      */
     function willLoadKeyTable(slicedKeyBlock, num_entries, keyword_index, delay) {
       slicedKeyBlock.delay(delay).then(function (input) {
-        KEY_TABLE = createKeyTable();
-        KEY_TABLE.alloc(num_entries);
 
         var scanner = Scanner(input);
         for (var i = 0, size = keyword_index.length; i < size; i++) {
           read_key_block(scanner, keyword_index[i]);
         }
 
-        KEY_TABLE.sort();
         console.log('KEY_TABLE loaded.');
       });
     }
@@ -1068,7 +932,7 @@
       pos += keyword_summary.key_index_comp_len;  // start of keyword block in keyword section
       slicedKeyBlock = _slice(pos, keyword_summary.key_blocks_len);
 
-      /*
+      //*
       // it is quite responsive to look up word without key table, which scans keyword in key blocks in an effcient way
       willLoadKeyTable(slicedKeyBlock, keyword_summary.num_entries, keyword_index, 00);
       // */
