@@ -40,17 +40,19 @@
 }(this, function ($, Promise, SpeexLib, PCMDataLib) {
   var MIME = {
     'wav': 'audio/wav',
+    'css': 'text/css',
+    'img': 'image',
     'spx': 'audio/x-speex',
     'jpg': 'image/jpeg',
     'png': 'image/png'
   };
   
-
-  
   function getExtension(filename, defaultExt) {
     return /(?:\.([^.]+))?$/.exec(filename)[1] || defaultExt;
   }
   
+  // TODO: revoke unused resource, LRU
+  // TODO: support for word variation
   return function createRenderer(resources) {
 
     var cache = (function createCache(mdd) {
@@ -73,24 +75,18 @@
       return {get: get};
     })(resources['mdd']);
     
-    function loadImage(data) {
-      var blob = new Blob([data], {type: 'image'});
+    function loadData(mime, data) {
+      var blob = new Blob([data], {type: mime});
       return URL.createObjectURL(blob);      
     }
-
-    function loadCss(data) {
-      var blob = new Blob([data], {type: 'text/css'});
-      return URL.createObjectURL(blob);      
-    }
-    
+  
     function loadAudio(ext, data) {
-      var blob;
       if (ext === 'wav') {
-        blob = new Blob([data], {type: MIME[ext]});
+        return loadData(MIME[ext], data);
       } else {  // 'spx'
-        blob = decodeFile(String.fromCharCode.apply(null, data));
+        var blob = decodeSpeex(String.fromCharCode.apply(null, data));
+        return URL.createObjectURL(blob);
       }
-      return URL.createObjectURL(blob);
     }
     
     // TODO: LRU cache: remove oldest one only after rendering.
@@ -98,9 +94,10 @@
       var $img = $(img);
       var src = $img.attr('src'), m = /^file:\/\/(.*)/.exec(src);
       if (m) { src = m[1]; }
-      cache.get(src, loadImage).then(function(url) {
-        $img.attr({src: url, src_: src});
-      });
+      cache.get(src, loadData.bind(null, MIME['img']))
+           .then(function(url) {
+              $img.attr({src: url, src_: src});
+            });
     }
     
     function playAudio(e, $a) {
@@ -125,13 +122,13 @@
     function replaceCss(index, link) {
       var $link = $(link);
       var href = $link.attr('href');
-      cache.get(href, loadCss)
+      cache.get(href, loadData.bind(null, MIME['css']))
            .then(function(url) {
               $link.attr({href: url, href_: href});
             });
     }
     
-    function decodeFile(file) {
+    function decodeSpeex(file) {
       var ogg = new Ogg(file, {file: true});
       ogg.demux();
 
@@ -165,6 +162,13 @@
         
         $content.find('a[href^="sound://"]').on('click', renderAudio);
       }
+      // in-page link
+      $content.find('a[href^="entry://"]').each(function() { 
+        var $el = $(this), href = $el.attr('href');
+        if (href.match('#')) {
+          $el.attr('href', href.substring(8));
+        }
+      });
       return $content;
     }    
     
