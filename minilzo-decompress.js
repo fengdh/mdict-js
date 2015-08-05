@@ -237,8 +237,16 @@ top_loop_ori: do{
   
 
   return {
-    decompress: function(s, bufInitSize, bufBlockSize) {
-      return decompress(new Uint8Array(s), bufInitSize, bufBlockSize);
+    /**
+     * Decompress LZO compressed data.
+     * @param buf ArrayBuffer or Uint8Array object containing LZO compressed data.
+     * @param initBufSize initial size for output ArrayBuffer, optional with default value of 8192 (8K) bytes
+     * @param blockSize block size used to extend output ArrayBuffer, optional with default value of 4096 (4K) bytes
+     * @return Uint8Array containing decompressed data. For performance reason, its underground ArrayBuffer 
+     *         is not truncated to the same size of output data, which can be accessed through TypedArray.prototype.buffer.
+     */
+    decompress: function(buf, initBufSize, blockSize) {
+      return decompress(new Uint8Array(buf), initBufSize, blockSize);
     }
   };
 })();
