@@ -19,7 +19,7 @@
  *
  *    i. 64-bit number used in data offset or length.
  *       Only lower 32-bit is recognized that validate number must be lower than 2^32 or 4G, 
- *       due to supported number format in current Javascript (ECMAScript5) standard.
+ *       due to supported number format in current Javascript standard (ECMAScript5).
  *       Huge dictionary file larger than 4G is considered out of scope for a web app IMHO.
  *
  *   ii. Encrypted keyword header which requires external or embedded regkey.
@@ -59,6 +59,7 @@
     // Browser globals
     factory(pako, lzo, ripemd128, MurmurHash3, Promise, parseXml);
   }
+  // TODO: for node.js
 
 }(this, function(pako, lzo, ripemd128, MurmurHash3, Promise, parseXml) {
   // Value of undefined.
@@ -558,9 +559,14 @@
      */
     function read_key_block(scanner, kdx) {
       var scanner = scanner.readBlock(kdx.comp_size, kdx.decomp_size);
-//      for (var i = 0; i < kdx.num_entries; i++) {
-//        console.log(scanner.readNum(), scanner.readText());
-//      }
+/*      
+      for (var i = 0; i < kdx.num_entries; i++) {
+        var kk = [scanner.readNum(), scanner.readText()];
+        if (kk[1].match('\.(css)$')) {
+          console.log(kk);
+        }
+      }
+//*/      
     }
 
     /**
@@ -620,7 +626,7 @@
      * @return definition for keyword
      */
     function read_definition(input, block, keyinfo) {
-      var scanner = Scanner(input).readBlock(block.comp_size);
+      var scanner = Scanner(input).readBlock(block.comp_size, block.decomp_size);
       scanner.forward(keyinfo.offset - block.decomp_offset);
       return scanner.readText();
     }
@@ -646,7 +652,7 @@
      */
     function read_object(input, block, keyinfo) {
       if (input.byteLength > 0) {
-        var scanner = Scanner(input).readBlock(block.comp_size);
+        var scanner = Scanner(input).readBlock(block.comp_size, block.decomp_size);
         scanner.forward(keyinfo.offset - block.decomp_offset);
         return scanner.readRaw(keyinfo.size);
       } else {
@@ -781,7 +787,7 @@
           } else {
             var shortage = expectedSize - list.length;
             if (shortage > 0) {
-              return loadKeys(nextKdx).delay(30).then(function(more) {
+              return loadKeys(nextKdx).then(function(more) {
                 Array.prototype.push.apply(list, more.slice(0, shortage));
                 return appendMore(word, list, KEY_INDEX[nextKdx.index + 1], expectedSize, filter, ticket);
               });
@@ -895,7 +901,7 @@
      */
     function willScanKeyTable(slicedKeyBlock, num_entries, keyword_index, delay) {
       slicedKeyBlock.delay(delay).then(function (input) {
-
+        console.log('scan key table...');
         var scanner = Scanner(input);
         for (var i = 0, size = keyword_index.length; i < size; i++) {
           read_key_block(scanner, keyword_index[i]);
