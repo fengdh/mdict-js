@@ -115,6 +115,10 @@ require(['jquery', 'mdict-parser', 'mdict-renderer', 'selectize'], function($, M
 
           $('#word').val(word);
           $('#btnLookup').click();
+        } else {
+          var currentUrl = location.href;
+          location.href = word;                       //Go to the target element.
+          history.replaceState(null,null,currentUrl); //Don't like hashes. Changing it back.        
         }
       }
     });
