@@ -168,13 +168,14 @@
         $content.find('a[href^="sound://"]').on('click', renderAudio);
       }
       
-      // rewrite in-page link
-      $content.find('a[href^="entry://"]').each(function() { 
-        var $el = $(this), href = $el.attr('href');
-        if (href.match('#')) {
-          $el.attr('href', href.substring(8));
-        }
-      });
+// resolve entry:// link dynamically in mdict.js      
+//      // rewrite in-page link
+//      $content.find('a[href^="entry://"]').each(function() { 
+//        var $el = $(this), href = $el.attr('href');
+//        if (href.match('#')) {
+//          $el.attr('href', href.substring(8));
+//        }
+//      });
       
       return $content;
     }    
