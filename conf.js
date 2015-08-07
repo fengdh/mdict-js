@@ -33,6 +33,6 @@ var require = {
 
   shim: {
     'selectize'	    : {deps: ['jquery']},
-    'lzo-wrapper'   : {deps: ['lzo1x']},
+//    'lzo-wrapper'   : {deps: ['lzo1x']},
   }
 };

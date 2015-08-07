@@ -358,7 +358,6 @@ var lzo1x = (function () {
 	                    continue;
 	                } else {
 	                    this.match_next();
-	                    continue;
 	                }
 	            }
 
