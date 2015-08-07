@@ -9,7 +9,7 @@ require(['jquery', 'mdict-parser', 'mdict-renderer', 'selectize'], function($, M
   $('#word').selectize({maxItems: 1});
   
   var $input = $('#dictfile').on('change', accept);
-  var REGEXP_STRIPKEY = /[,. '-]/g;
+  var REGEXP_STRIPKEY = /[., '/\\@_-]()/g;
 
   function adaptKey(key) { 
     return key.toLowerCase().replace(REGEXP_STRIPKEY, ''); 
@@ -56,6 +56,7 @@ require(['jquery', 'mdict-parser', 'mdict-renderer', 'selectize'], function($, M
               labelField: 'word',
               searchField: 'word',
               delimiter: '~~',
+              loadThrottle: 10,
               create: function(v, callback) {
                 return callback({word: v, key: adaptKey(v), value: v});
               },
