@@ -1,8 +1,11 @@
 (function(global, define) {
   // define module and also export to global
   define(function (require, exports, module) {
-      require('lzo1x.js');
-    
+      require(['lzo1x'], function() {
+          if (!global.lzo1x) {
+            global.lzo1x = lzo1x_lvar;
+          }
+      });
       return {
         decompress: function(buf /*, bufInitSize, bufBlockSize */) {
           var state = { inputBuffer: new Uint8Array(buf) };
