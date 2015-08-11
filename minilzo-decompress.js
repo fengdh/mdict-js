@@ -69,8 +69,10 @@ var lzo1x = (function () {
         return buf = new bufType(l = initSize || 8192);
       },
       require: function(n) {
-        if (l - c < n) {
-          var buf2 = new bufType(l += blockSize * Math.ceil( (l - c + n ) / blockSize ));
+        var r = c - l - n;
+        if (r > 0) {
+          var buf2 = new bufType(l += blockSize * ( ~~(r / blockSize ) + 1));
+//          console.log(n, buf2.length - buf.length, buf2.length);
           buf2.set(buf);
           buf = buf2;
         }
@@ -90,14 +92,14 @@ var lzo1x = (function () {
   
   function decompress(inBuf, bufInitSize, bufBlockSize) {
     var buf = new FlexBuffer(Uint8Array, bufBlockSize),
-        out = buf.alloc(bufInitSize);
+        out = buf.alloc(Math.max(bufInitSize, inBuf.length));
     
     var op=0,
         ip=0,
         t = inBuf[ip],
         state = c_top_loop, 
         m_pos=0,
-        ip_end = inBuf.byteLength;
+        ip_end = inBuf.length;
 
     if (t > 17) {
       ip++;
@@ -130,14 +132,13 @@ top_loop_ori: do{
             }
 
             //s=3; do out[op++] = inBuf[ip++]; while(--s > 0);//* (lzo_uint32 *)(op) = * (const lzo_uint32 *)(ip);op += 4; ip += 4;
-            out = buf.require(4);
+            out = buf.require(4 + t);
             out[op++] = inBuf[ip++];
             out[op++] = inBuf[ip++];
             out[op++] = inBuf[ip++];
             out[op++] = inBuf[ip++];
             
             if (--t > 0) {
-              out = buf.require(t);
               do out[op++] = inBuf[ip++]; while (--t > 0);
             }
        case c_first_literal_run: /*first_literal_run: */
