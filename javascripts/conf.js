@@ -17,7 +17,8 @@ var require = {
     'murmurhash3'   : 'murmurhash3.min',
     'ripemd128'     : 'ripemd128.min',
 
-    'mdict-core'    : 'mdict-core',
+    'mdict-common'  : 'mdict-common',
+    'mdict-parser'  : 'mdict-parser',
     'mdict-renderer': 'mdict-renderer',
   },
   

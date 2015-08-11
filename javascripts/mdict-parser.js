@@ -18,17 +18,17 @@
  * NOTE - Unsupported features:
  *
  *    i. 64-bit number used in data offset or length.
- *       Only lower 32-bit is recognized that validate number must be lower than 2^32 or 4G, 
- *       due to supported number format in current Javascript (ECMAScript5) standard.
+ *       Only lower 32-bit is recognized that validate value must be lower than 2^32 or 4G, 
+ *       due to number format supported in current Javascript standard (ECMAScript5).
  *       Huge dictionary file larger than 4G is considered out of scope for a web app IMHO.
  *
  *   ii. Encrypted keyword header which requires external or embedded regkey.
  *       Most of shared MDict dictionary files are not encrypted,
  *       and I have no intention to break protected ones.
- *       However keyword index encryption is common and supported well.
+ *       However keyword index encryption is common and supported.
  *
  *  iii. Stylesheet substitution.
- *       Encounter no example, I suppose it is not a popular feature.
+ *       Have no example yet, I suppose it is not a popular feature.
  *       Contact me if you have one in need of support.
  *
  * MDict software and its file format is developed by Rayman Zhang(张文伟),
@@ -37,7 +37,7 @@
 
 /**
  * Usage:
- *   mdict-parser.js is defined as an AMD/Node module.
+ *   mdict-parser.js is defined as an AMD (or Node::todo) module.
  *   To initialize it, you have to provide/define a module named with "mdict-parseXml",
  *   which will be used to covert a string to XML dom object when parsing dictionary head.
  *
@@ -52,52 +52,41 @@
 (function (root, factory) {
   "use strict";
   
-  if (typeof define === 'function' && define.amd) {
-    // AMD. Register as an anonymous module.
-    define(['pako', 'lzo', 'ripemd128', 'murmurhash3', 'bluebird', 'mdict-parseXml'], factory);
-  } else {
-    // Browser globals
-    factory(pako, lzo, ripemd128, MurmurHash3, Promise, parseXml);
+  if (typeof define === 'function') {
+    if  (define.amd) {
+      // AMD. Register as an anonymous module.
+      define(['pako', 'lzo', 'ripemd128', 'bluebird', 'mdict-parseXml', 'mdict-common'], factory);
+    } else {
+      // TODO: For Node
+      /*
+      define(function(require, exports, module)) {
+        exports = factory();       
+      });
+      */
+    }
   }
 
-}(this, function(pako, lzo, ripemd128, MurmurHash3, Promise, parseXml) {
+}(this, function(pako, lzo, ripemd128, Promise, parseXml, common) {
   // Value of undefined.
   var UNDEFINED = void 0;
-  
-  // Seed value used to create MurmurHash3 function.
-  var _HASH_SEED = 0xFE176;
   
   // A shared UTF-16LE text decorder used to read dictionary header string.
   var UTF_16LE = new TextDecoder('utf-16le');
   
   /**
    * Return the first argument as result.
-   * This function is used to simulate consequence, i.e. return readed data and then forward to a new position.
+   * This function is used to simulate consequence, i.e. read data and return it, then forward to a new position.
    * @param any data or function call
    * @return the first arugment
    */
   function conseq(/* args... */) { return arguments[0]; }
 
-  /**
-   * Create a MurmurHash3 function with specified seed value.
-   * @param seed a 32-bit arbitary int value
-   * @return a MurmurHash3 function using a specified seed value. 
-   */
-  var hash = (function(seed) {
-    /**
-     * Function to calculate 32-bit hash code for a string.
-     * @param string
-     * @return 32-bit hash code calculated with MurmurHash3 algorithm with a specific seed value. 
-     */
-    return function hash(str) { return MurmurHash3.hashString(str.toLowerCase(), 32, seed); }
-  })(_HASH_SEED);
-
   /*
    * Decrypt encrypted data block of keyword index (attrs.Encrypted = "2").
    * @see https://github.com/zhansliu/writemdict/blob/master/fileformat.md#keyword-index-encryption
-   * @param buf an ArrayBuffer of source data
-   * @param key an ArrayBuffer of decryption key, need to apply with ripemd128() before decryption
-   * @return an ArrayBuffer now carrying decrypted data, occupying the same memory space of source buffer
+   * @param buf an ArrayBuffer containing source data
+   * @param key an ArrayBuffer holding decryption key, which will be supplied to ripemd128() before decryption
+   * @return an ArrayBuffer carrying decrypted data, occupying the same memory space of source buffer
    */
   function decrypt(buf, key) {
     key = ripemd128(key);
@@ -114,7 +103,7 @@
   
   /**
    * For sliceThen(..).exec(proc, ..), mark what proc function returns is multiple values 
-   * to be used by further Promise#spread(..) call. 
+   * to be passed to further Promise#spread(..) call.
    */
   function spreadus() {
     var args = Array.prototype.slice.apply(arguments);
@@ -124,7 +113,7 @@
   
   /**
    * Slice part of a file/blob object, return a promise object which will resolve to an ArrayBuffer to feed subsequent process.
-   * The returned promise object is extened with exec(proc, args...) method which can be chained with further process.
+   * The returned promise object is extened with an exec(proc, args...) method which can be chained with further process.
    * @param file file or blob object
    * @param offset start position to slice
    * @param len length to slice
@@ -134,14 +123,13 @@
     var p = new Promise(function(_resolve) {
       var reader = new FileReader();
       reader.onload = function() { _resolve(reader.result); }
-//      console.log('slice: ', offset, ' + ', len);
-      reader.readAsArrayBuffer(file.slice(offset, offset + len)); // It's an asynchronous call!
+      reader.readAsArrayBuffer(file.slice(offset, offset + len));
     });
 
     /**
      * Call proc with specified arguments prepending with sliced file/blob data (ArrayBuffer) been read.
-     * @param first argument is a function to be executed
-     * @param other optional arguments to be passed to function following auto supplied input ArrayBuffer
+     * @param the first argument is a function to be executed
+     * @param other optional arguments are passed to the function following auto supplied input ArrayBuffer
      * @return a promise object which can be chained with further process through spread() method
      */
     p.exec = function(proc /*, args... */) {
@@ -167,7 +155,7 @@
   function reject(reason) { return Promise.reject(reason); }
   
   /**
-   * Harvest resolved promises, if all failed return their failed reasons. 
+   * Harvest any resolved promises, if all failed then return reasons. 
    */
   function harvest(outcomes) {
     return Promise.settle(outcomes).then(function(results) {
@@ -186,23 +174,17 @@
       return solved.length ? solved : failed;
     });
   }
-    
-  /**
-   * Get file extension.
-   */
-  function getExtension(filename, defaultExt) {
-    return /(?:\.([^.]+))?$/.exec(filename)[1] || defaultExt;
-  }
   
   /*
-   * Create a Record Block Table object to load record block info from index part of record section in mdx/mdd file.
-   * Retrived data is stored in an Uint32Array which contains N+1 pairs of (offset_comp, offset_decomp) value,
-   * where N is number of record blocks. The tail of the table shows offset of the last record block's end.
+   * Create a Record Block Table object to load record block info from record section in mdx/mdd file.
+   * Retrived data is stored in an Uint32Array which contains N pairs of (offset_comp, offset_decomp) value,
+   * where N is number of record blocks.
    *
    * When looking up a given key for its definition:
-   *   1. Find offset (offset_decomp) of the record in key table or scanning the keyword block containing the given key directly.
-   *   2. Execute binary search on RECORD_BLOCK_TABLE to get record block containing the record.
-   *   3. Load found record block, using offset to retrieve content of the record.
+   *   1. Search KEY_INDEX to locate keyword block containing the given key.
+   *   2. Scanning the found keyword block to get its record offset and size.
+   *   3. Search RECORD_BLOCK_TABLE to get record block containing the record.
+   *   4. Load the found record block, using its offset and size to retrieve record content.
    *
    * @see https://github.com/zhansliu/writemdict/blob/master/fileformat.md#record-section
    */
@@ -214,12 +196,12 @@
       alloc:  function(len) { 
                 arr = new Uint32Array(len * 2);
               },
-      // Store offset pair value (compressed & decompressed) of a record block
+      // Store offset pair value (compressed & decompressed) for a record block
       // NOTE: offset_comp is absolute offset counted from start of mdx/mdd file.
       put:    function(offset_comp, offset_decomp) { 
                 arr[pos++] = offset_comp; arr[pos++] = offset_decomp;
               },
-      // Given offset of a key after decompression, return record block info containing it, else undefined if out of range.
+      // Given offset of a keyword after decompression, return a record block info containing it, else undefined if not found.
       find:   function(keyAt) {
                 var hi = (arr.length >> 1) - 1, lo = 0, i = (lo + hi) >> 1, val = arr[(i << 1) + 1];
 
@@ -247,7 +229,6 @@
                   val = arr[(i << 1) + 1];
                 }
               },
-      debug:  function() { console.log(arr); },
     };
   }
   
@@ -260,29 +241,21 @@
   }
   
   /**
-   * Regular expression to strip key if dictionary's "StripKey" attribute is true. 
-   */
-  var REGEXP_STRIPKEY = {
-    'mdx' : /[., '/\\@_-]()/g,
-    'mdd' : /([.][^.]*$)|[., '/\\@_-]/g        // strip '.' before file extension that is keeping the last period
-  };
-  
-  /**
-   * Parse MDict dictionary/resource file (mdx/mdd).
-   * @param file a File object
+   * Parse a MDict dictionary/resource file (mdx/mdd).
+   * @param file a File/Blob object
    * @param ext file extension, mdx/mdd
    * @return a Promise object which will resolve to a lookup function.
    */
   function parse_mdict(file, ext) {
 
-    var KEY_INDEX,
+    var KEY_INDEX,                                       // keyword index array
         RECORD_BLOCK_TABLE = createRecordBlockTable();   // record block table
 
     var attrs = {},     // storing dictionary attributes
         _v2,            // true if enginge version > 2
-        _bpu,           // bytes per unit when converting size to byte length for text data
+        _bpu,           // bytes per unit when converting text size to byte length for text data
         _tail,          // need to skip extra tail bytes after decoding text
-        _decoder,       // decorder for text data
+        _decoder,       // text decorder
 
         _decryptors  = [false, false],
                         // [keyword_header_decryptor, keyword_index_decryptor], only keyword_index_decryptor is supported
@@ -312,10 +285,12 @@
       
       _searchTextLen = (attrs.Encoding === 'UTF-16') 
                           ?   function(dv, offset) {
+                                offset = offset;
                                 var mark = offset;
                                 while (dv.getUint16(offset++)) { /* scan for NUL */ };
                                 return offset - mark;
                           } : function(dv, offset) {
+                                offset = offset;
                                 var mark = offset;
                                 while (dv.getUint8(offset++)) { /* scan for NUL */ }
                                 return offset - mark - 1;
@@ -342,7 +317,7 @@
         _decryptors[1] = decrypt; 
       }
       
-      var regexp = REGEXP_STRIPKEY[ext];
+      var regexp = common.REGEXP_STRIPKEY[ext];
       if (isTrue(attrs.KeyCaseSensitive)) {
         _adaptKey = isTrue(attrs.StripKey) 
                       ? function(key) { return key.replace(regexp, '$1'); }
@@ -353,77 +328,55 @@
                       : function(key) { return key.toLowerCase(); };
       }
     }
-
+    
     // Read data in current offset from target data ArrayBuffer
     function Scanner(buf, len) {
-      var offset = 0;
-      var dv = new DataView(buf);
+      var offset = 0, dv = new DataView(buf);
 
       var methods = {
-        buffer: function() { return buf; },
         // target data size in bytes
-        size: function() {
-          return len || buf.byteLength;
-        },
+        size:     function() { return len || buf.byteLength; },
         // update offset to new position
-        forward: function(len) {
-          return offset += len;
-        },
+        forward:  function(len) { return offset += len; },
         // return current offset
-        offset: function() {
-          return offset;
-        },
+        offset:   function() { return offset; },
         
         // MDict file format uses big endian to store number
         
         // 32-bit unsigned int
-        readInt: function() {
-          return conseq(dv.getUint32(offset, false), this.forward(4));
-        },
-        readUint16: function() {
-          return conseq(dv.getUint16(offset, false), this.forward(2));
-        },
-        readUint8: function() {
-          return conseq(dv.getUint8(offset, false), this.forward(1));
-        },
+        readInt:    function() { return conseq(dv.getUint32(offset, false), this.forward(4)); },
+        readUint16: function() { return conseq(dv.getUint16(offset, false), this.forward(2)); },
+        readUint8:  function() { return conseq(dv.getUint8(offset, false),  this.forward(1)); },
+        
         // Read a "short" number representing keyword text size, 8-bit for version < 2, 16-bit for version >= 2
-        readShort: function() {
-          return _readShort(this);
-        },
+        readShort:  function() { return _readShort(this); },
         // Read a number representing offset or data block size, 16-bit for version < 2, 32-bit for version >= 2
-        readNum: function() {
-          return _readNum(this);
-        },
+        readNum:    function() { return _readNum(this); },
 
-        readUTF16: function(len) {
-          return conseq(UTF_16LE.decode(new Uint8Array(buf, offset, len)), this.forward(len));
-        },
+        readUTF16:  function(len) { return conseq(UTF_16LE.decode(new Uint8Array(buf, offset, len)), this.forward(len)); },
+        
         // Read data to an Uint8Array and decode it to text with specified encoding.
         // Text length in bytes is determined by searching terminated NUL.
-        // NOTE: After decoding the text, forward extra "tail" bytes (= bytes per unit) according to encoding specified in dictionary attributes. 
+        // NOTE: After decoding the text, it is need to forward extra "tail" bytes according to specified encoding. 
         readText: function() {
           var len = _searchTextLen(dv, offset);
           return conseq(_decoder.decode(new Uint8Array(buf, offset, len)), this.forward(len + _bpu));
         },
         // Read data to an Uint8Array and decode it to text with specified encoding.
         // @param len length in basic unit, need to multiply byte per unit to get length in bytes
-        // NOTE: After decoding, it is required to forward extra "tail" bytes according to encoding specified in dictionary attributes. 
+        // NOTE: After decoding the text, it is need to forward extra "tail" bytes according to specified encoding. 
         readTextSized: function(len) {
           len *= _bpu;
           return conseq(_decoder.decode(new Uint8Array(buf, offset, len)), this.forward(len + _tail));
         },
         
-        // Skip checksum
-        checksum: function() {
-          this.forward(4);     // just ignore it
-        },
+        // Skip checksum, just ignore it anyway.
+        checksum:    function() { this.forward(4); },
         // Version >= 2.0 only
-        checksum_v2: function() {
-          return _checksum_v2(this);
-        },
+        checksum_v2: function() { return _checksum_v2(this); },
 
-        // Read data block for keyword index, key block and record definition
-        // Those data block maybe compressed (gzip or lzo), while keyword index maybe be encrypted.
+        // Read data block of keyword index, key block or record content.
+        // These data block are maybe in compressed (gzip or lzo) format, while keyword index maybe be encrypted.
         // @see https://github.com/zhansliu/writemdict/blob/master/fileformat.md#compression (with typo mistake)
         readBlock: function(len, expectedBufSize, decryptor) {
           var comp_type = dv.getUint8(offset, false);  // compression type, 0 = non, 1 = lzo, 2 = gzip
@@ -438,20 +391,20 @@
             var tmp = new Uint8Array(buf, offset, len);
             if (decryptor) {
               var passkey = new Uint8Array(8);
-              passkey.set(new Uint8Array(buf, offset - 4, 4));
-              passkey.set([0x95, 0x36, 0x00, 0x00], 4);
+              passkey.set(new Uint8Array(buf, offset - 4, 4));  // key part 1: checksum
+              passkey.set([0x95, 0x36, 0x00, 0x00], 4);         // key part 2: fixed data
               tmp = decryptor(tmp, passkey);
             }
             
             tmp = comp_type === 2 ? pako.inflate(tmp) : lzo.decompress(tmp, expectedBufSize, 4096);
             this.forward(len);
-            return Scanner(tmp.buffer, tmp.byteLength);
+            return Scanner(tmp.buffer, tmp.length);
           }
         },
         
         // Read raw data as Uint8Array from current offset with specified length in bytes
         readRaw: function(len) {
-          return conseq(new Uint8Array(buf, offset, len), this.forward(len === UNDEFINED ? buf.byteLength - offset : len));
+          return conseq(new Uint8Array(buf, offset, len), this.forward(len === UNDEFINED ? buf.length - offset : len));
         },
       };
 
@@ -473,7 +426,7 @@
      * @see https://github.com/zhansliu/writemdict/blob/master/fileformat.md#header-section
      * @param input sliced file (start = 4, length = len + 48), header string + header section (max length 48)
      * @param len lenghth of header_str
-     * @return remained length of header section (header_str + checksum), equals to len + 4
+     * @return [remained length of header section (header_str and checksum, = len + 4), original input]
      */
     function read_header_sect(input, len) {
       var scanner = Scanner(input),
@@ -489,7 +442,7 @@
 
       attrs.Encrypted = parseInt(attrs.Encrypted, 10) || 0;
 
-      console.log('dictionary attributes: ', attrs);
+      common.log('dictionary attributes: ', attrs);
       config();
       return spreadus(len + 4, input);
     }
@@ -522,22 +475,20 @@
      * @see https://github.com/zhansliu/writemdict/blob/master/fileformat.md#keyword-index
      * @param input sliced file, remained part of keyword section after keyword summary which can also be used to read following key blocks.
      * @param keyword_summary 
-     * @param offset start position of keyword index
-     * @return array of keyword index where each one points to a key block.
+     * @return [keyword_summary, array of keyword index]
      */
-    function read_keyword_index(input, keyword_summary, offset) {
+    function read_keyword_index(input, keyword_summary) {
       var scanner = Scanner(input).readBlock(keyword_summary.key_index_comp_len, keyword_summary.key_index_decomp_len, _decryptors[1]),
-          keyword_index = Array(keyword_summary.num_blocks);
-      // start position of key block
-//      offset += keyword_summary.key_index_comp_len;
-      offset = 0;
+          keyword_index = Array(keyword_summary.num_blocks),
+          offset = 0;
+      
       for (var i = 0, size; i < keyword_summary.num_blocks; i++) {
         keyword_index[i] = {
           num_entries: conseq(scanner.readNum(), size = scanner.readShort()),
-// UNUSED          
+// UNUSED, can be ignored        
 //          first_size:  size = scanner.readShort(),
           first_word:  conseq(scanner.readTextSized(size), size = scanner.readShort()),
-// UNUSED          
+// UNUSED, can be ignored
 //          last_size:   size = scanner.readShort(),
           last_word:   scanner.readTextSized(size),
           comp_size:   size = scanner.readNum(),
@@ -552,15 +503,36 @@
     }
 
     /**
-     * Read keyword entries inside a key block and fill KEY_TABLE.
+     * Read keyword entries inside a keyword block and fill KEY_TABLE.
      * @param scanner scanner object to read key entries, which starts at begining of target key block
      * @param kdx corresponding keyword index object
+     * NOTE: no need to read keyword block anymore, for debug only.
      */
     function read_key_block(scanner, kdx) {
       var scanner = scanner.readBlock(kdx.comp_size, kdx.decomp_size);
-//      for (var i = 0; i < kdx.num_entries; i++) {
-//        console.log(scanner.readNum(), scanner.readText());
-//      }
+      for (var i = 0; i < kdx.num_entries; i++) {
+        scanner.readNum(); scanner.readText();
+      }
+    }
+    
+    /**
+     * Delay to scan key table, for debug onyl.
+     * @param slicedKeyBlock a promise object which will resolve to an ArrayBuffer containing keyword blocks 
+     *                       sliced from mdx/mdd file.
+     * @param num_entries number of keyword entries
+     * @param keyword_index array of keyword index
+     * @param delay time to delay for scanning key table
+     */
+    function willScanKeyTable(slicedKeyBlock, num_entries, keyword_index, delay) {
+      slicedKeyBlock.delay(delay).then(function (input) {
+        common.log('scan key table...');
+        var scanner = Scanner(input);
+        for (var i = 0, size = keyword_index.length; i < size; i++) {
+          read_key_block(scanner, keyword_index[i]);
+        }
+
+        common.log('KEY_TABLE loaded.');
+      });
     }
 
     /**
@@ -568,6 +540,7 @@
      * @see https://github.com/zhansliu/writemdict/blob/master/fileformat.md#record-section
      * @param input sliced file, start = begining of record section, length = 32 (max length of record summary)
      * @param pos begining of record section
+     * @returj record summary object
      */
     function read_record_summary(input, pos) {
       var scanner = Scanner(input),
@@ -613,14 +586,14 @@
     }
     
     /**
-     * Read definition at specified offset for a given keyword in the record block, which is sliced from the file determined by a record block index.
+     * Read definition in text for given keyinfo object.
      * @param input record block sliced from the file
-     * @param block record block index which determines a record block contains at target offset 
-     * @param keyinfo a object contains record offset and optional size for the given keyword
-     * @return definition for keyword
+     * @param block record block index 
+     * @param keyinfo a object with property of record's offset and optional size for the given keyword
+     * @return definition in text
      */
     function read_definition(input, block, keyinfo) {
-      var scanner = Scanner(input).readBlock(block.comp_size);
+      var scanner = Scanner(input).readBlock(block.comp_size, block.decomp_size);
       scanner.forward(keyinfo.offset - block.decomp_offset);
       return scanner.readText();
     }
@@ -638,15 +611,15 @@
     }
 
     /**
-     * Read definition as raw ArrayBuffer at specified offset for a given keyword in the record block, which is sliced from the file determined by a record block index.
+     * Read content in ArrayBuffer for give keyinfo object
      * @param input record block sliced from the file
-     * @param block record block index which determines a record block contains at target offset 
-     * @param keyinfo a object contains record offset and optional size for the given keyword
-     * @return an ArrayBuffer containing resource for keyword
+     * @param block record block index 
+     * @param keyinfo a object with property of record's offset and optional size for the given keyword
+     * @return an ArrayBuffer containing resource of image/audio/css/font etc.
      */
     function read_object(input, block, keyinfo) {
       if (input.byteLength > 0) {
-        var scanner = Scanner(input).readBlock(block.comp_size);
+        var scanner = Scanner(input).readBlock(block.comp_size, block.decomp_size);
         scanner.forward(keyinfo.offset - block.decomp_offset);
         return scanner.readRaw(keyinfo.size);
       } else {
@@ -655,9 +628,9 @@
     }
     
     /**
-     * Find word definition for a key info object which contains record offset and optional size for the given keyword.
-     * @param keyinfo a object contains offset and optional size for the given keyword
-     * @return a promise object which will resolve to definition for keyword. Link to other keyword is followed to get actual definition.
+     * Find word definition for given keyinfo object.
+     * @param keyinfo a object with property of record's offset and optional size for the given keyword
+     * @return a promise object which will resolve to definition in text. Link to other keyword is followed to get actual definition.
      */
     function findWord(keyinfo) {
       var block = RECORD_BLOCK_TABLE.find(keyinfo.offset);
@@ -667,9 +640,9 @@
     }
     
     /**
-     * Find resource (image, sound etc.) for a key info object which contains record offset and optional size for the given keyword.
-     * @param keyinfo a object contains offset and optional size for the given keyword
-     * @return a promise object which will resolve to an ArrayBuffer containing resource for keyword 
+     * Find resource (image, sound etc.) for given keyinfo object.
+     * @param keyinfo a object with property of record's offset and optional size for the given keyword
+     * @return a promise object which will resolve to an ArrayBuffer containing resource of image/audio/css/font etc.
      * TODO: Follow link, maybe it's too expensive and a rarely used feature?
      */
     function findResource(keyinfo) {
@@ -679,120 +652,9 @@
                   .spread(function (blob) { return resolve(blob); });
     }
     
-    /**
-     *
-     */
-    function matchOffset(list, offset) {
-      return list.some(function(el) { return el.offset === offset ? list = [el] : false; }) ? list : [];
-    }
-    
-    
-    // Lookup functions
-    var LOOKUP = {
-      /**
-       *
-       */
-      mdx: function(query) {
-        var offset = query.offset,
-            phrase = (typeof query === 'string' || query instanceof String) ? query : query.phrase;
-        
-        if (query.forKeys) {
-          return matchKeys(phrase, query.maxCount);
-        }
-        
-        var word = phrase.trim().toLowerCase();
-
-        // scan mode
-        return seekVanguard(word).spread(function(kdx, idx, list) {
-          list = list.slice(idx);
-          if (offset !== UNDEFINED) {
-            list = matchOffset(list, offset);
-          } else {
-            list = list.filter(function(el) { return el.toLowerCase() === word; });
-          }
-          return harvest(list.map(findWord));
-        });
-      },
-      
-      // TODO: chain multiple mdd file
-      // TODO: cache key table and content of samll mdd file
-      mdd: function(phrase) {
-        var word = phrase.trim().toLowerCase();
-        word = '\\' + word.replace(/(^[/\\])|([/]$)/, '');
-        word = word.replace(/\//g, '\\');
-        // scan mode
-        return seekVanguard(word).spread(function(kdx, idx, list) {
-          return list.slice(idx).filter(function(one) {
-            return one.toLowerCase() === word;
-          });
-        }).then(function(candidates) {
-          if (candidates.length === 0) {
-            throw '*RESOURCE NOT FOUND* ' + phrase;
-          } else {
-            return findResource(candidates[0]);
-          }
-        });
-      }
-    };
-    
-    var MAX_CANDIDATES = 256, _cached_keys, mutual_ticket = 0;
-    
-    function matchKeys(phrase, expectedSize) {
-      expectedSize = expectedSize || MAX_CANDIDATES;
-      var str = phrase.trim().toLowerCase(),
-          m = /([^*]+)[*]/.exec(str), 
-          word;
-      if (m) {
-        word = m[1];
-        var wildcard = new RegExp('^' + str.replace(/\*+/g, '.*').replace(/\?/g, '.') + '$');
-        var filter = phrase[phrase.length - 1] === ' ' 
-                        ? function (s) { return wildcard.test(s); }
-                        : function (s) { return wildcard.test(s) && !/ /.test(s); };
-      } else {
-        word = phrase.trim();
-      }
-      
-      return seekVanguard(word).spread(function(kdx, idx, list){
-        list = list.slice(idx);
-        if (filter) {
-          list = list.filter(filter);
-        }
-        return appendMore(word, list, KEY_INDEX[kdx.index + 1], expectedSize, filter, ++mutual_ticket);
-      });
-    };
-    
-    // TODO: have to restrict max count to improve response
-    /**
-     * Append more to word list according to a filter or expected size.
-     */
-    function appendMore(word, list, nextKdx, expectedSize, filter, ticket) {
-      if (ticket !== mutual_ticket) {
-        throw 'force terminated';
-      }
-      if (nextKdx) {
-          if (filter) {
-            if (nextKdx.first_word.substr(0, word.length) === word) {
-              return loadKeys(nextKdx).delay(30).then(function(more) {
-                console.log(nextKdx);
-                Array.prototype.push.apply(list, more.filter(filter));
-                return appendMore(word, list, KEY_INDEX[nextKdx.index + 1], expectedSize, filter, ticket);
-              });
-            }
-          } else {
-            var shortage = expectedSize - list.length;
-            if (shortage > 0) {
-              return loadKeys(nextKdx).delay(30).then(function(more) {
-                Array.prototype.push.apply(list, more.slice(0, shortage));
-                return appendMore(word, list, KEY_INDEX[nextKdx.index + 1], expectedSize, filter, ticket);
-              });
-            } else {
-              return list.slice(0, expectedSize);
-            }
-          }
-      }
-      return list;
-    }
-    
+    //------------------------------------------------------------------------------------------------
+    // Implementation for look-up
+    //------------------------------------------------------------------------------------------------
     
     /**
      * Search for the first keyword match given phrase.
@@ -826,8 +688,41 @@
         });
     }
     
+    // TODO: have to restrict max count to improve response
+    /**
+     * Append more to word list according to a filter or expected size.
+     */
+    function appendMore(word, list, nextKdx, expectedSize, filter, ticket) {
+      if (ticket !== mutual_ticket) {
+        throw 'force terminated';
+      }
+      if (nextKdx) {
+          if (filter) {
+            if (nextKdx.first_word.substr(0, word.length) === word) {
+              return loadKeys(nextKdx).delay(30).then(function(more) {
+                common.log(nextKdx);
+                Array.prototype.push.apply(list, more.filter(filter));
+                return appendMore(word, list, KEY_INDEX[nextKdx.index + 1], expectedSize, filter, ticket);
+              });
+            }
+          } else {
+            var shortage = expectedSize - list.length;
+            if (shortage > 0) {
+              return loadKeys(nextKdx).then(function(more) {
+                Array.prototype.push.apply(list, more.slice(0, shortage));
+                return appendMore(word, list, KEY_INDEX[nextKdx.index + 1], expectedSize, filter, ticket);
+              });
+            } else {
+              return list.slice(0, expectedSize);
+            }
+          }
+      }
+      return list;
+    }
+        
     /**
      * Load keys for a keyword index object from mdx/mdd file.
+     * @param kdx keyword index object
      */
     function loadKeys(kdx) {
       if (_cached_keys && _cached_keys.pilot === kdx.first_word) {
@@ -852,8 +747,9 @@
       }
     }
     
-    
-    // Reduce the key index array to an element which contains or is nearest one matching a given phrase.
+    /**
+      * Reduce the key index array to an element which contains or is the nearest one matching a given phrase.
+      */
     function reduce(arr, phrase) {
       var len = arr.length;
       if (len > 1) {
@@ -866,7 +762,9 @@
       }
     }
     
-    // Reduce the array to index of an element which contains or is nearest one matching a given phrase.
+    /**
+      * Reduce the array to index of an element which contains or is the nearest one matching a given phrase.
+      */
     function shrink(arr, phrase) {
       var len = arr.length, sub;
       if (len > 1) {
@@ -884,31 +782,88 @@
         return (arr.pos || 0) + (phrase === _adaptKey(arr[0]) ? 0 : 1);
       }
     }
+
+    var _cached_keys,             // cache latest keys 
+        mutual_ticket = 0;        // a oneway increased ticket used to cancel unfinished pattern match
+    
+    function matchKeys(phrase, expectedSize) {
+      expectedSize = expectedSize || 256;
+      var str = phrase.trim().toLowerCase(),
+          m = /([^*]+)[*]/.exec(str), 
+          word;
+      if (m) {
+        word = m[1];
+        var wildcard = new RegExp('^' + str.replace(/\*+/g, '.*').replace(/\?/g, '.') + '$');
+        var filter = phrase[phrase.length - 1] === ' ' 
+                        ? function (s) { return wildcard.test(s); }
+                        : function (s) { return wildcard.test(s) && !/ /.test(s); };
+      } else {
+        word = phrase.trim();
+      }
+      
+      return seekVanguard(word).spread(function(kdx, idx, list){
+        list = list.slice(idx);
+        if (filter) {
+          list = list.filter(filter);
+        }
+        return appendMore(word, list, KEY_INDEX[kdx.index + 1], expectedSize, filter, ++mutual_ticket);
+      });
+    };
+    
     
     /**
-     * Delay to load key table.
-     * @param slicedKeyBlock a promise object which will resolve to an ArrayBuffer containing keyword blocks 
-     *                       sliced from mdx/mdd file.
-     * @param num_entries number of keyword entries
-     * @param keyword_index array of keyword index
-     * @param delay time to delay loading key table
+     * Match the first element in list with given offset.
      */
-    function willScanKeyTable(slicedKeyBlock, num_entries, keyword_index, delay) {
-      slicedKeyBlock.delay(delay).then(function (input) {
-
-        var scanner = Scanner(input);
-        for (var i = 0, size = keyword_index.length; i < size; i++) {
-          read_key_block(scanner, keyword_index[i]);
-        }
-
-        console.log('KEY_TABLE loaded.');
-      });
+    function matchOffset(list, offset) {
+      return list.some(function(el) { return el.offset === offset ? list = [el] : false; }) ? list : [];
     }
+    
+    // Lookup functions
+    var LOOKUP = {
+      mdx: function(query) {
+        var offset = query.offset,
+            phrase = (typeof query === 'string' || query instanceof String) ? query : query.phrase;
+        
+        if (query.forKeys) {
+          return matchKeys(phrase, query.maxCount);
+        }
+        
+        var word = phrase.trim().toLowerCase();
+
+        return seekVanguard(word).spread(function(kdx, idx, list) {
+          list = list.slice(idx);
+          if (offset !== UNDEFINED) {
+            list = matchOffset(list, offset);
+          } else {
+            list = list.filter(function(el) { return el.toLowerCase() === word; });
+          }
+          return harvest(list.map(findWord));
+        });
+      },
+      
+      // TODO: chain multiple mdd file
+      mdd: function(phrase) {
+        var word = phrase.trim().toLowerCase();
+        word = '\\' + word.replace(/(^[/\\])|([/]$)/, '');
+        word = word.replace(/\//g, '\\');
+        return seekVanguard(word).spread(function(kdx, idx, list) {
+          return list.slice(idx).filter(function(one) {
+            return one.toLowerCase() === word;
+          });
+        }).then(function(candidates) {
+          if (candidates.length === 0) {
+            throw '*RESOURCE NOT FOUND* ' + phrase;
+          } else {
+            return findResource(candidates[0]);
+          }
+        });
+      }
+    };    
     
     // ------------------------------------------
     // start to load mdx/mdd file
     // ------------------------------------------
-    console.log('start to load ' + file.name);
+    common.log('start to load ' + file.name);
     
     var pos = 0;
     var slicedKeyBlock;
@@ -923,10 +878,10 @@
       pos += header_remain_len;                   // start of keyword section
       return read_keyword_summary(input, header_remain_len);
 
-    }).then(function(keyword_summary) {           console.log(keyword_summary);
+    }).then(function(keyword_summary) {           common.log(keyword_summary);
       pos += keyword_summary.len;                 // start of key index in keyword section
       return _slice(pos, keyword_summary.key_index_comp_len)
-                .exec(read_keyword_index, keyword_summary, pos);
+                .exec(read_keyword_index, keyword_summary);
 
     }).spread(function (keyword_summary, keyword_index) {
       pos += keyword_summary.key_index_comp_len;  // start of keyword block in keyword section
@@ -945,12 +900,12 @@
       return _slice(pos, 32)
                 .exec(read_record_summary, pos);
       
-    }).spread(function (record_summary) {       console.log(record_summary);
+    }).spread(function (record_summary) {       common.log(record_summary);
       pos += record_summary.len;                // start of record blocks in record section
       return _slice(pos, record_summary.index_len)
                 .exec(read_record_block, record_summary);
 
-    }).spread(function() {                      console.log('-- parse done --', file.name);
+    }).spread(function() {                      common.log('-- parse done --', file.name);
       // resolve and return lookup() function according to file extension (mdx/mdd)
       LOOKUP[ext].description = attrs.Description;
       return resolve(LOOKUP[ext]);
@@ -967,7 +922,8 @@
   return function load(files) {
       var resources = [];
       Array.prototype.forEach.call(files, function(f) {
-        var ext =  getExtension(f.name, 'mdx')
+        var ext =  common.getExtension(f.name, 'mdx');
+        
         resources.push(resources[ext] = parse_mdict(f, ext));
       });
         

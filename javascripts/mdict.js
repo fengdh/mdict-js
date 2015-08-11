@@ -4,16 +4,11 @@ define('mdict-parseXml', function() {
     }
 });
 
-require(['jquery', 'mdict-parser', 'mdict-renderer', 'selectize'], function($, MParser, MRenderer, Selectize) {
+require(['jquery', 'mdict-common', 'mdict-parser', 'mdict-renderer', 'selectize'], function($, MCommon, MParser, MRenderer, Selectize) {
   
   $('#word').selectize({maxItems: 1});
   
   var $input = $('#dictfile').on('change', accept);
-  var REGEXP_STRIPKEY = /[,. '-]/g;
-
-  function adaptKey(key) { 
-    return key.toLowerCase().replace(REGEXP_STRIPKEY, ''); 
-  }
   
   function accept(e) {
     var fileList = $(e.target).prop('files');
@@ -56,8 +51,9 @@ require(['jquery', 'mdict-parser', 'mdict-renderer', 'selectize'], function($, M
               labelField: 'word',
               searchField: 'word',
               delimiter: '~~',
+              loadThrottle: 10,
               create: function(v, callback) {
-                return callback({word: v, key: adaptKey(v), value: v});
+                return callback({word: v, value: v});
               },
               createOnBlur: true,
               closeAfterSelect: true,
@@ -80,7 +76,7 @@ require(['jquery', 'mdict-parser', 'mdict-renderer', 'selectize'], function($, M
 //                  console.log(list.join(', '));
                   // TODO: filter candidate keyword starting with "_"
                   list = list.map(function(v) {
-                    return {word: v, key: adaptKey(v), value: v.offset};
+                    return {word: v, value: v.offset};
                   });
                   self.clearOptions();
                   callback(list);
@@ -114,6 +110,10 @@ require(['jquery', 'mdict-parser', 'mdict-renderer', 'selectize'], function($, M
 
           $('#word').val(word);
           $('#btnLookup').click();
+        } else {
+          var currentUrl = location.href;
+          location.href = word;                       //Go to the target element.
+          history.replaceState(null,null,currentUrl); //Don't like hashes. Changing it back.        
         }
       }
     });

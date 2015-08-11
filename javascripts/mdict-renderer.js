@@ -39,12 +39,13 @@
 
 }(this, function ($, Promise, SpeexLib, PCMDataLib) {
   var MIME = {
-    'wav': 'audio/wav',
     'css': 'text/css',
     'img': 'image',
-    'spx': 'audio/x-speex',
     'jpg': 'image/jpeg',
-    'png': 'image/png'
+    'png': 'image/png',
+    'spx': 'audio/x-speex',
+    'wav': 'audio/wav',
+    'mp3':  'audio/mp3',
   };
   
   function getExtension(filename, defaultExt) {
@@ -81,11 +82,11 @@
     }
   
     function loadAudio(ext, data) {
-      if (ext === 'wav') {
-        return loadData(MIME[ext], data);
-      } else {  // 'spx'
+      if (ext === 'spx') {
         var blob = decodeSpeex(String.fromCharCode.apply(null, data));
         return URL.createObjectURL(blob);
+      } else {  // 'spx'
+        return loadData(MIME[ext] || 'audio', data);
       }
     }
     
@@ -167,13 +168,14 @@
         $content.find('a[href^="sound://"]').on('click', renderAudio);
       }
       
-      // rewrite in-page link
-      $content.find('a[href^="entry://"]').each(function() { 
-        var $el = $(this), href = $el.attr('href');
-        if (href.match('#')) {
-          $el.attr('href', href.substring(8));
-        }
-      });
+// resolve entry:// link dynamically in mdict.js      
+//      // rewrite in-page link
+//      $content.find('a[href^="entry://"]').each(function() { 
+//        var $el = $(this), href = $el.attr('href');
+//        if (href.match('#')) {
+//          $el.attr('href', href.substring(8));
+//        }
+//      });
       
       return $content;
     }    
