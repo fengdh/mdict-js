@@ -253,18 +253,31 @@ top_loop_ori: do {
   return {
     /**
      * Decompress LZO compressed data.
-     * @param buf ArrayBuffer or Uint8Array object containing LZO compressed data.
-     * @param initSize initial size for output ArrayBuffer, optional with default value of 8192 (8K) bytes
-     * @param blockSize block size used to extend output ArrayBuffer, optional with default value of 4096 (4K) bytes
+     * Usage:
+     *   result = lzo.decompress(input);
+     *   result = lzo.decompress(input, {initSize: 16000, blockSize: 8192});
+     *   result = lzo.decompress(input, initSize, blockSize);
+     * or 
+     *   var output = lzo.createFlexBuffer(initSize, blockSize);
+     *   result = lzo.decompress(input, output);  // which output FlexBuffer can be resued to improve performance
+     * @param input ArrayBuffer or Uint8Array object containing LZO compressed data.
+     * @param second argument
+     *          options {initSize: .., blockSize: ..} object, used to create output FlexBuffer
+     *          initSize number of initial size for output buffer (at least length of input buffer whether missing or a lesser value)
+     *          output a re-usable FlexBuffer object which can be used to improve performance
+     * @param blockSize optional third argument block size used to extend output ArrayBuffer, default is 8192
      * @return Uint8Array containing decompressed data. For performance reason, its underground ArrayBuffer 
      *         is not truncated to the same size of output data, which can be accessed through TypedArray.prototype.buffer.
      */
-    decompress: function(input, options) {
+    decompress: function(input, options, blockSize) {
       var output;
       if (options.require instanceof Function) {
         output = options;
         output.reset();
       } else {
+        if (typeof options === 'number') {
+          options = {initSize: options, blockSize: blockSize || 8192};
+        }
         output = this.createFlexBuffer(options.initSize || input.length, options.blockSize || 8192);
       }
       return decompress(input, output);
