@@ -396,7 +396,7 @@
               tmp = decryptor(tmp, passkey);
             }
             
-            tmp = comp_type === 2 ? pako.inflate(tmp) : lzo.decompress(tmp, expectedBufSize, 4096);
+            tmp = comp_type === 2 ? pako.inflate(tmp) : lzo.decompress(tmp, expectedBufSize, 1308672);
             this.forward(len);
             return Scanner(tmp.buffer, tmp.length);
           }
@@ -511,7 +511,9 @@
     function read_key_block(scanner, kdx) {
       var scanner = scanner.readBlock(kdx.comp_size, kdx.decomp_size);
       for (var i = 0; i < kdx.num_entries; i++) {
-        scanner.readNum(); scanner.readText();
+//        scanner.readNum(); scanner.readText();
+        var kk = [scanner.readNum(), scanner.readText()];
+//        console.log(scanner.readNum(), scanner.readText());
       }
     }
     
@@ -655,7 +657,75 @@
     //------------------------------------------------------------------------------------------------
     // Implementation for look-up
     //------------------------------------------------------------------------------------------------
+    var slicedKeyBlock,
+        _cached_keys,             // cache latest keys 
+        _trail,                   // store latest visited record block & position when search for candidate keys
+        mutual_ticket = 0;        // a oneway increased ticket used to cancel unfinished pattern match
+
     
+    /**
+      * Reduce the key index array to an element which contains or is the nearest one matching a given phrase.
+      */
+    function reduce(arr, phrase) {
+      var len = arr.length;
+      if (len > 1) {
+        len = len >> 1;
+        return (phrase < _adaptKey(arr[len].first_word)) 
+                  ? reduce(arr.slice(0, len), phrase)
+                  : reduce(arr.slice(len), phrase);
+      } else {
+        return arr[0];
+      }
+    }
+    
+    /**
+      * Reduce the array to index of an element which contains or is the nearest one matching a given phrase.
+      */
+    function shrink(arr, phrase) {
+      var len = arr.length, sub;
+      if (len > 1) {
+        len = len >> 1;
+        var key = _adaptKey(arr[len]);
+        if (phrase < key) {
+          sub = arr.slice(0, len);
+          sub.pos = arr.pos;
+        } else {
+          sub = arr.slice(len);
+          sub.pos = (arr.pos || 0) + len;
+        }
+        return shrink(sub, phrase);
+      } else {
+        return (arr.pos || 0) + (phrase === _adaptKey(arr[0]) ? 0 : 1);
+      }
+    }
+
+    /**
+     * Load keys for a keyword index object from mdx/mdd file.
+     * @param kdx keyword index object
+     */
+    function loadKeys(kdx) {
+      if (_cached_keys && _cached_keys.pilot === kdx.first_word) {
+        return resolve(_cached_keys.list);
+      } else {
+        return slicedKeyBlock.then(function(input) {
+          var scanner = Scanner(input), list = Array(kdx.num_entries);
+          scanner.forward(kdx.offset);
+          scanner = scanner.readBlock(kdx.comp_size, kdx.decomp_size);
+              
+          for (var i = 0; i < kdx.num_entries; i++) {
+            var offset = scanner.readNum();
+            list[i] = new Object(scanner.readText());
+            list[i].offset = offset;
+            if (i > 0) {
+              list[i - 1].size = offset - list[i - 1].offset;
+            }
+          }
+          _cached_keys = {list: list, pilot: kdx.first_word};
+          return list;
+        });
+      }
+    }
+        
     /**
      * Search for the first keyword match given phrase.
      */
@@ -696,117 +766,107 @@
       if (ticket !== mutual_ticket) {
         throw 'force terminated';
       }
-      if (nextKdx) {
-          if (filter) {
-            if (nextKdx.first_word.substr(0, word.length) === word) {
-              return loadKeys(nextKdx).delay(30).then(function(more) {
-                common.log(nextKdx);
-                Array.prototype.push.apply(list, more.filter(filter));
-                return appendMore(word, list, KEY_INDEX[nextKdx.index + 1], expectedSize, filter, ticket);
-              });
-            }
-          } else {
-            var shortage = expectedSize - list.length;
-            if (shortage > 0) {
-              return loadKeys(nextKdx).then(function(more) {
-                Array.prototype.push.apply(list, more.slice(0, shortage));
-                return appendMore(word, list, KEY_INDEX[nextKdx.index + 1], expectedSize, filter, ticket);
-              });
-            } else {
-              return list.slice(0, expectedSize);
-            }
+
+      if (filter) {
+        if (_trail.count < expectedSize && nextKdx && nextKdx.first_word.substr(0, word.length) === word) {
+          return loadKeys(nextKdx).delay(30).then(function(more) {
+            common.log(nextKdx);
+            _trail.offset = 0;
+            _trail.block = nextKdx.index;
+            Array.prototype.push.apply(list, more.filter(filter, _trail));
+            return appendMore(word, list, KEY_INDEX[nextKdx.index + 1], expectedSize, filter, ticket);
+          });
+        } else {
+          if (list.length === 0) {
+            _trail.exhausted = true;
           }
+          return resolve(list);
+        }
+      } else {
+        var shortage = expectedSize - list.length;
+        if (shortage > 0 && nextKdx) {
+console.log('go next', nextKdx);
+          _trail.block = nextKdx.index;
+          return loadKeys(nextKdx).then(function(more) {
+            _trail.offset = 0;
+            _trail.pos = Math.min(shortage, more.length);
+            Array.prototype.push.apply(list, more.slice(0, shortage));
+console.log('$$ ' + more[shortage - 1], shortage);                
+            return appendMore(word, list, KEY_INDEX[nextKdx.index + 1], expectedSize, filter, ticket);
+          });
+        } else {
+          if (_trail.pos > expectedSize) {
+            _trail.pos = expectedSize;
+          }
+          list = list.slice(0, expectedSize);
+          _trail.count = list.length;
+          _trail.total += _trail.count;
+          return resolve(list);
+        }
       }
-      return list;
     }
         
-    /**
-     * Load keys for a keyword index object from mdx/mdd file.
-     * @param kdx keyword index object
-     */
-    function loadKeys(kdx) {
-      if (_cached_keys && _cached_keys.pilot === kdx.first_word) {
-        return resolve(_cached_keys.list);
-      } else {
-        return slicedKeyBlock.then(function(input) {
-          var scanner = Scanner(input), list = Array(kdx.num_entries);
-          scanner.forward(kdx.offset);
-          scanner = scanner.readBlock(kdx.comp_size, kdx.decomp_size);
-              
-          for (var i = 0; i < kdx.num_entries; i++) {
-            var offset = scanner.readNum();
-            list[i] = new Object(scanner.readText());
-            list[i].offset = offset;
-            if (i > 0) {
-              list[i - 1].size = offset - list[i - 1].offset;
-            }
-          }
-          _cached_keys = {list: list, pilot: kdx.first_word};
-          return list;
-        });
-      }
+    function followUp() {
+      var kdx = KEY_INDEX[_trail.block];
+      return loadKeys(kdx).then(function (list) {
+                return [kdx, Math.min(_trail.offset + _trail.pos, list.length - 1), list];
+              });
     }
-    
-    /**
-      * Reduce the key index array to an element which contains or is the nearest one matching a given phrase.
-      */
-    function reduce(arr, phrase) {
-      var len = arr.length;
-      if (len > 1) {
-        len = len >> 1;
-        return (phrase < _adaptKey(arr[len].first_word)) 
-                  ? reduce(arr.slice(0, len), phrase)
-                  : reduce(arr.slice(len), phrase);
-      } else {
-        return arr[0];
-      }
-    }
-    
-    /**
-      * Reduce the array to index of an element which contains or is the nearest one matching a given phrase.
-      */
-    function shrink(arr, phrase) {
-      var len = arr.length, sub;
-      if (len > 1) {
-        len = len >> 1;
-        var key = _adaptKey(arr[len]);
-        if (phrase < key) {
-          sub = arr.slice(0, len);
-          sub.pos = arr.pos;
-        } else {
-          sub = arr.slice(len);
-          sub.pos = (arr.pos || 0) + len;
-        }
-        return shrink(sub, phrase);
-      } else {
-        return (arr.pos || 0) + (phrase === _adaptKey(arr[0]) ? 0 : 1);
-      }
-    }
-
-    var _cached_keys,             // cache latest keys 
-        mutual_ticket = 0;        // a oneway increased ticket used to cancel unfinished pattern match
-    
-    function matchKeys(phrase, expectedSize) {
-      expectedSize = expectedSize || 256;
+      
+    function matchKeys(phrase, expectedSize, follow) {
+      expectedSize = Math.max(expectedSize || 0, 10);
       var str = phrase.trim().toLowerCase(),
-          m = /([^*]+)[*]/.exec(str), 
+          m = /([^?*]+)[?*]+/.exec(str), 
           word;
       if (m) {
         word = m[1];
-        var wildcard = new RegExp('^' + str.replace(/\*+/g, '.*').replace(/\?/g, '.') + '$');
-        var filter = phrase[phrase.length - 1] === ' ' 
-                        ? function (s) { return wildcard.test(s); }
-                        : function (s) { return wildcard.test(s) && !/ /.test(s); };
+        var wildcard = new RegExp('^' + str.replace(/([\.\\\+\[\^\]\$\(\)])/g, '\\$1').replace(/\*+/g, '.*').replace(/\?/g, '.') + '$'),
+            tester = phrase[phrase.length - 1] === ' ' 
+                        ? function(s) { return wildcard.test(s); } 
+                        : function(s) { return wildcard.test(s) && !/ /.test(s); },
+            filter = function (s, i) { 
+                       if (_trail.count < expectedSize && tester(s)) {
+                         _trail.count++;
+                         _trail.total++;
+                         _trail.pos = i + 1;
+                         return true;
+                       }
+                       return false;
+                     };
       } else {
         word = phrase.trim();
       }
       
-      return seekVanguard(word).spread(function(kdx, idx, list){
+      if (follow && _trail && _trail.exhausted) {
+        return resolve([]);
+      }
+      
+      var startFrom = follow && _trail ? followUp() : seekVanguard(word);
+      
+      return startFrom.spread(function(kdx, idx, list) {
+console.log('start  ', kdx);
         list = list.slice(idx);
+        _trail = {phrase: phrase, 
+                  block: kdx.index, 
+                  offset: idx, 
+                  pos: list.length, 
+                  count: 0,
+                  total: follow ? _trail && _trail.total || 0 : 0
+                };
         if (filter) {
-          list = list.filter(filter);
+          list = list.filter(filter, _trail);
         }
-        return appendMore(word, list, KEY_INDEX[kdx.index + 1], expectedSize, filter, ++mutual_ticket);
+        return appendMore(word, list, KEY_INDEX[kdx.index + 1], expectedSize, filter, ++mutual_ticket)
+                  .then(function(result) {
+                    if (_trail.block === KEY_INDEX.length - 1) {
+                      if (_trail.offset + _trail.pos >= KEY_INDEX[_trail.block].num_entries) {
+                        _trail.exhausted = true;
+console.log('EXHAUSTED!!!!');
+                      }
+                    }
+console.log('trail: ', _trail);          
+                    return result;
+                  });
       });
     };
     
@@ -820,25 +880,28 @@
     
     // Lookup functions
     var LOOKUP = {
+      /**
+       * @param query 
+       *          String
+       *          {phrase: .., max: .., follow: true} object
+       */
       mdx: function(query) {
-        var offset = query.offset,
-            phrase = (typeof query === 'string' || query instanceof String) ? query : query.phrase;
-        
-        if (query.forKeys) {
-          return matchKeys(phrase, query.maxCount);
-        }
-        
-        var word = phrase.trim().toLowerCase();
+        if (typeof query === 'string' || query instanceof String) {
+          _trail = null;
+          var word = query.trim().toLowerCase(), offset = query.offset;
 
-        return seekVanguard(word).spread(function(kdx, idx, list) {
-          list = list.slice(idx);
-          if (offset !== UNDEFINED) {
-            list = matchOffset(list, offset);
-          } else {
-            list = list.filter(function(el) { return el.toLowerCase() === word; });
-          }
-          return harvest(list.map(findWord));
-        });
+          return seekVanguard(word).spread(function(kdx, idx, list) {
+            list = list.slice(idx);
+            if (offset !== UNDEFINED) {
+              list = matchOffset(list, offset);
+            } else {
+              list = list.filter(function(el) { return el.toLowerCase() === word; });
+            }
+            return harvest(list.map(findWord));
+          });
+        } else {
+          return matchKeys(query.phrase, query.max, query.follow);
+        }
       },
       
       // TODO: chain multiple mdd file
@@ -866,7 +929,6 @@
     common.log('start to load ' + file.name);
     
     var pos = 0;
-    var slicedKeyBlock;
 
     // read first 4 bytes to get header length
     return _slice(pos, 4).exec(read_file_head).spread(function(len) {
