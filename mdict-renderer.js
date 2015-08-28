@@ -118,6 +118,7 @@
                 setTimeout(playAudio.bind($a));
              });
       }
+      return false;
     }
     
     function replaceCss(index, link) {
