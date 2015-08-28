@@ -115,6 +115,7 @@ require(['jquery', 'mdict-common', 'mdict-parser', 'mdict-renderer', 'selectize'
           location.href = word;                       //Go to the target element.
           history.replaceState(null,null,currentUrl); //Don't like hashes. Changing it back.        
         }
+        return false;
       }
     });
   }
