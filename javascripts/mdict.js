@@ -72,7 +72,7 @@ require(['jquery', 'mdict-common', 'mdict-parser', 'mdict-renderer', 'selectize'
                   return;
                 };
                 
-                mdict.search({phrase: query, max: 5000}).then(function(list) {
+                mdict.search({phrase: query, max: 1024}).then(function(list) {
 //                  console.log(list.join(', '));
                   // TODO: filter candidate keyword starting with "_"
                   list = list.map(function(v) {
