@@ -11,7 +11,7 @@ View online demo at http://fengdh.github.io/mdict-js/
  * Limited support for data compression & encryption:
    * Data block compressed in GZip/LZO format.
    * Keyword index block encrypted with RIPEMD128.
- * Look up single word or search candidate word list with wild card (*?, i.e. a**ly).
+ * Look up single word or search candidate word list with wild card (\*?, i.e. *a**ly).
  * Fast and very fast for human ineraction:
    * Parsing mdx/mdd header only, e.g. <200ms in total for a pair of mdx(80M, >180k entries) and mdd(1Gb, >150k entries) file.
    * Each querying completed in no more than serveral 10ms.
