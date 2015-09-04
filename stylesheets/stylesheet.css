@@ -1,6 +1,10 @@
 * {
   box-sizing: border-box; }
 
+#definition *{
+  box-sizing: initial;
+}
+
 body {
   padding: 0;
   margin: 0;
