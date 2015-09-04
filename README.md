@@ -21,7 +21,7 @@ View online demo at http://fengdh.github.io/mdict-js/
  * Providing asynchornous API powered by bluebird (support for Promises A+, https://github.com/petkaantonov/bluebird).
  * Sample renderer with support for embeded resource (image/audio/css/javascript etc.), currently working on Chrome(pc & mobile)/FireFox.
  
-Issues & TODOs:
+### Issues & TODOs:
  * Not support 64-bit number (>4G) used for data offset or length due to number format in ECMAScript 5 standard.
  * Not support encrypted keyword header that requires external or embedded regkey.
  * Currently *.mp3 or WavMP3 processed *.wav audio file is not supported for FireFox, though OK for Chrome. 
