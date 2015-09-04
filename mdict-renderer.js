@@ -45,7 +45,8 @@
     'png': 'image/png',
     'spx': 'audio/x-speex',
     'wav': 'audio/wav',
-    'mp3':  'audio/mp3',
+    'mp3': 'audio/mp3',
+    'js' : 'text/javascript'
   };
   
   function getExtension(filename, defaultExt) {
@@ -134,6 +135,16 @@
             });
     }
     
+    function injectJS(index, el) {
+      var $el = $(el);
+      var src = $el.attr('src');
+      cache.get(src, loadData.bind(null, MIME['js']))
+           .then(function(url) {
+              $el.remove();
+              $.ajax({url: url, dataType: 'script', cache: true});
+            });
+    }    
+    
     function decodeSpeex(file) {
       var ogg = new Ogg(file, {file: true});
       ogg.demux();
@@ -165,6 +176,8 @@
         $content.find('img[src]').each(replaceImage);
         
         $content.find('link[rel=stylesheet]').each(replaceCss);
+        
+        $content.find('script[src]').each(injectJS);
         
         $content.find('a[href^="sound://"]').on('click', renderAudio);
       }
