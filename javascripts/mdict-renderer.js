@@ -180,6 +180,8 @@
         $content.find('script[src]').each(injectJS);
         
         $content.find('a[href^="sound://"]').on('click', renderAudio);
+        
+        setTimeout(function() { $('#definition *').trigger('resize'); });
       }
       
 // resolve entry:// link dynamically in mdict.js      
