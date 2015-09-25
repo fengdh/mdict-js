@@ -670,9 +670,9 @@
       var len = arr.length;
       if (len > 1) {
         len = len >> 1;
-        return (phrase < _adaptKey(arr[len].first_word)) 
-                  ? reduce(arr.slice(0, len), phrase)
-                  : reduce(arr.slice(len), phrase);
+        return phrase > _adaptKey(arr[len - 1].last_word)
+                  ? reduce(arr.slice(len), phrase)
+                  : reduce(arr.slice(0, len), phrase);
       } else {
         return arr[0];
       }
@@ -695,7 +695,7 @@
         }
         return shrink(sub, phrase);
       } else {
-        return (arr.pos || 0) + (phrase === _adaptKey(arr[0]) ? 0 : 1);
+        return (arr.pos || 0) + (phrase <= _adaptKey(arr[0]) ? 0 : 1);
       }
     }
 
@@ -837,6 +837,10 @@ console.log('$$ ' + more[shortage - 1], shortage);
         word = phrase.trim();
       }
       
+      if (_trail && _trail.phrase !== phrase) {
+        follow = false;
+      }
+      
       if (follow && _trail && _trail.exhausted) {
         return resolve([]);
       }
@@ -847,11 +851,11 @@ console.log('$$ ' + more[shortage - 1], shortage);
 console.log('start  ', kdx);
         list = list.slice(idx);
         _trail = {phrase: phrase, 
-                  block: kdx.index, 
+                  block:  kdx.index, 
                   offset: idx, 
-                  pos: list.length, 
-                  count: 0,
-                  total: follow ? _trail && _trail.total || 0 : 0
+                  pos:    list.length, 
+                  count:  0,
+                  total:  follow ? _trail && _trail.total || 0 : 0
                 };
         if (filter) {
           list = list.filter(filter, _trail);
@@ -950,7 +954,8 @@ console.log('trail: ', _trail);
       slicedKeyBlock = _slice(pos, keyword_summary.key_blocks_len);
 
       /*
-      // it is quite responsive to look up word without key table, which scans keyword in key blocks in an effcient way
+      // Now it's fast enough to look up word without key table, which scans keyword from the specified key blocks in an effcient way.
+      // No need to scan the whole key table in ahead.
       willScanKeyTable(slicedKeyBlock, keyword_summary.num_entries, keyword_index, 00);
       // */
       
