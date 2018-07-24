@@ -287,7 +287,7 @@
                           ?   function(dv, offset) {
                                 offset = offset;
                                 var mark = offset;
-                                while (dv.getUint16(offset++)) { /* scan for NUL */ };
+                                while (dv.getUint16(offset)) { offset+= _bpu /* scan for \u0000 */ };
                                 return offset - mark;
                           } : function(dv, offset) {
                                 offset = offset;
